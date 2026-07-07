@@ -1,0 +1,22 @@
+# Optional local Postgres. The default local setup uses SQLite (file:./dev.db),
+# so Docker is NOT required to run the MVP. Use this if you prefer Postgres:
+#   1) docker compose up -d
+#   2) set DATABASE_URL=postgresql://qbr:qbr@localhost:5432/qbr?schema=public in .env.local
+#   3) change prisma/schema.prisma datasource provider to "postgresql"
+#   4) npx prisma migrate dev
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gdi-qbr-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qbr
+      POSTGRES_PASSWORD: qbr
+      POSTGRES_DB: qbr
+    ports:
+      - "5432:5432"
+    volumes:
+      - qbr_pgdata:/var/lib/postgresql/data
+
+volumes:
+  qbr_pgdata:

@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+    /* GDI logo blue (#00467F) */
+    --primary: 207 100% 25%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 207 30% 96%;
+    --secondary-foreground: 207 100% 22%;
+    --muted: 207 25% 96%;
+    --muted-foreground: 207 12% 42%;
+    --accent: 207 45% 94%;
+    --accent-foreground: 207 100% 22%;
+    /* GDI logo red (#9F0B10) */
+    --destructive: 358 87% 38%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 207 18% 88%;
+    --input: 207 18% 88%;
+    --ring: 207 100% 25%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+}

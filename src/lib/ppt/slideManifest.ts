@@ -1,0 +1,314 @@
+import type { SlideContent } from "../ai/schemas";
+import type { DeckOptions } from "./generateQbrDeck";
+import { TO_CONFIRM } from "../constants";
+import { DECK_THEME } from "./deckTheme";
+import { localizedTheme } from "./localizedTheme";
+import { normalizeSlideContent } from "./textNormalize";
+
+/**
+ * Builds a structural manifest of the deck — the same ordered set of slides the
+ * deterministic renderer (generateQbrDeck.ts) produces, including continuation
+ * slides for overflowing tables and the same fit-to-slide font scaling for prose
+ * sections.
+ *
+ * This is the single source of truth for the in-browser live preview: it must
+ * stay in lock-step with generateQbrDeck.ts so slide indices (used for
+ * auto-scroll to the most recently edited slide) match what the user downloads.
+ *
+ * It is pure data (no pptxgenjs / Node deps) so it can run on the client.
+ */
+
+const T = DECK_THEME;
+
+/** The 7 core client-facing sections, in order. */
+export type SlideSection =
+  | "title"
+  | "agenda"
+  | "followUps"
+  | "priorities"
+  | "dashboard"
+  | "whatsNext"
+  | "questions";
+
+export interface SlideOverlays {
+  pageNumber: number | null;
+  pageNumberPosition: "bottom-right" | "bottom-left" | "bottom-both";
+  footer: string | null;
+  tag: string | null;
+  /** Whether the top-right co-branding lockup (client logo │ GDI) is shown. */
+  showLockup: boolean;
+  /** Client logo URL for the lockup (null → only the GDI logo is shown). */
+  clientLogoUrl: string | null;
+}
+
+interface BaseSlide {
+  /** 1-based slide number, matching the rendered .pptx. */
+  index: number;
+  section: SlideSection;
+  /** True for "(cont.)" continuation slides. */
+  continuation: boolean;
+  overlays: SlideOverlays;
+}
+
+export type PreviewSlide =
+  | (BaseSlide & {
+      kind: "title";
+      clientName: string;
+      quarterYear: string;
+      headingText: string;
+      meetingMonthYear: string;
+    })
+  | (BaseSlide & { kind: "agenda"; heading: string; items: { number: number; label: string }[] })
+  | (BaseSlide & {
+      kind: "table";
+      heading: string;
+      headers: string[];
+      rows: string[][];
+      colPct: number[];
+    })
+  | (BaseSlide & {
+      kind: "prose";
+      heading: string;
+      titleFontPt: number;
+      bodyFontPt: number;
+      items: { number: number; title: string; body: string }[];
+    })
+  | (BaseSlide & {
+      kind: "dashboard";
+      heading: string;
+      columns: { title: string; rows: { label: string; value: string }[] }[];
+    })
+  | (BaseSlide & { kind: "questions"; headingText: string; thanksText: string });
+
+/** Omit that distributes over a union so each member keeps its own keys. */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+type SlideBody = DistributiveOmit<PreviewSlide, "index" | "overlays">;
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, v));
+}
+
+function chunkRows<R>(rows: R[], size: number): R[][] {
+  if (rows.length === 0) return [[]];
+  const out: R[][] = [];
+  for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
+  return out;
+}
+
+/** Mirror of generateQbrDeck.ts fitProseList(). */
+function fitProseFonts(
+  count: number,
+  cfg: { yStart: number; defaultStep: number; title: { fontSize: number; fontSizeMin: number }; body: { fontSize: number; fontSizeMin: number } },
+): { titleFontPt: number; bodyFontPt: number } {
+  if (count <= 0) return { titleFontPt: cfg.title.fontSize, bodyFontPt: cfg.body.fontSize };
+  const available = T.safeArea.contentBottom - cfg.yStart;
+  const step = Math.min(cfg.defaultStep, available / count);
+  const scale = step / cfg.defaultStep;
+  return {
+    titleFontPt: clamp(Math.round(cfg.title.fontSize * scale), cfg.title.fontSizeMin, cfg.title.fontSize),
+    bodyFontPt: clamp(Math.round(cfg.body.fontSize * scale), cfg.body.fontSizeMin, cfg.body.fontSize),
+  };
+}
+
+/**
+ * Mirror of generateQbrDeck.ts proseCapacity(): the maximum number of prose
+ * items that can share one slide while each still gets at least a title line
+ * plus a minimum body height. Beyond this the section paginates onto "(cont.)"
+ * slides so nothing ever overflows the safe content area.
+ */
+function proseCapacity(cfg: { yStart: number; titleOffset: number; minBodyH: number }): number {
+  const available = T.safeArea.contentBottom - cfg.yStart;
+  const minStep = cfg.titleOffset + cfg.minBodyH;
+  return Math.max(1, Math.floor(available / minStep));
+}
+
+/** Mirror of generateQbrDeck.ts agendaCapacity(): items that fit on one agenda slide. */
+function agendaCapacity(cfg: { yStart: number; step: number }): number {
+  const available = T.safeArea.contentBottom - cfg.yStart;
+  return Math.max(1, Math.floor(available / cfg.step));
+}
+
+export function buildDeckManifest(
+  rawContent: SlideContent,
+  options: DeckOptions = {},
+  locale?: string | null,
+): PreviewSlide[] {
+  const R = localizedTheme(locale);
+  const confirm = R.toConfirm;
+  // Mirror the renderer's enforced normalization so the live preview matches the
+  // downloaded deck exactly (idempotent if the caller already normalized).
+  const content = normalizeSlideContent(rawContent);
+  const slides: SlideBody[] = [];
+
+  // 1. Title
+  slides.push({
+    kind: "title",
+    section: "title",
+    continuation: false,
+    clientName: content.title.clientName,
+    quarterYear: content.title.quarterYear,
+    headingText: R.title.heading.text,
+    meetingMonthYear: content.title.meetingMonthYear,
+  });
+
+  // 2. Agenda (paginated — overflow items flow onto continuation slides)
+  const a = R.agenda;
+  const agendaItems = (content.agenda.length > 0 ? content.agenda : [...a.fallbackItems]).map(
+    (label, i) => ({ number: i + a.startNumber, label }),
+  );
+  const agendaPerSlide = agendaCapacity(a);
+  chunkRows(agendaItems, agendaPerSlide).forEach((items, page) => {
+    slides.push({
+      kind: "agenda",
+      section: "agenda",
+      continuation: page > 0,
+      heading: page === 0 ? a.heading : a.headingCont,
+      items,
+    });
+  });
+
+  // 3. Open Follow-Ups & Progress (paginated table)
+  const ft = R.followUpsTable;
+  const followRows: string[][] =
+    content.followUps.length === 0
+      ? [[...ft.emptyRow, confirm, confirm, confirm]]
+      : content.followUps.map((f) => [String(f.number), f.action, f.status, f.owner, f.dueDate]);
+  const followAvail = T.safeArea.contentBottom - ft.y;
+  const followPerSlide = Math.max(1, Math.floor(followAvail / ft.rowH) - 1);
+  const colTotal = ft.colW.reduce((a, b) => a + b, 0);
+  const followColPct = ft.colW.map((c) => (c / colTotal) * 100);
+  chunkRows(followRows, followPerSlide).forEach((rows, page) => {
+    slides.push({
+      kind: "table",
+      section: "followUps",
+      continuation: page > 0,
+      heading: page === 0 ? ft.heading : ft.headingCont,
+      headers: [...ft.headers],
+      rows,
+      colPct: followColPct,
+    });
+  });
+
+  // 4. Priority Items (fit-to-slide prose, paginated past the per-slide capacity)
+  const priorityItems = content.priorityItems.map((p) => ({ number: p.number, title: p.title, body: p.explanation }));
+  chunkRows(priorityItems, proseCapacity(R.priorities)).forEach((items, page) => {
+    const fonts = fitProseFonts(items.length, R.priorities);
+    slides.push({
+      kind: "prose",
+      section: "priorities",
+      continuation: page > 0,
+      heading: page === 0 ? R.priorities.heading : R.priorities.headingCont,
+      titleFontPt: fonts.titleFontPt,
+      bodyFontPt: fonts.bodyFontPt,
+      items,
+    });
+  });
+
+  // 5. Dashboard (paginated 3-column tables)
+  const d = R.dashboard;
+  const groups = [
+    { title: d.groupTitles.healthAndSafety, rows: content.dashboard.healthAndSafety },
+    { title: d.groupTitles.operational, rows: content.dashboard.operational },
+    { title: d.groupTitles.financial, rows: content.dashboard.financial },
+    ...(content.dashboard.customGroups ?? []),
+  ].map((g) => ({
+    title: g.title,
+    rows: g.rows.length ? g.rows : [{ label: d.emptyRow.label, value: confirm }],
+  }));
+  const dashAvail = T.safeArea.contentBottom - d.tableY;
+  const dashPerSlide = Math.max(1, Math.floor(dashAvail / d.rowH));
+  chunkRows(groups, 3).forEach((groupSet, groupPage) => {
+    const maxRows = Math.max(...groupSet.map((g) => g.rows.length));
+    const dashPages = Math.max(1, Math.ceil(maxRows / dashPerSlide));
+    for (let page = 0; page < dashPages; page++) {
+      const start = page * dashPerSlide;
+      const continuation = groupPage > 0 || page > 0;
+      slides.push({
+        kind: "dashboard",
+        section: "dashboard",
+        continuation,
+        heading: continuation ? d.headingCont : d.heading,
+        columns: groupSet.map((g) => ({ title: g.title, rows: g.rows.slice(start, start + dashPerSlide) })),
+      });
+    }
+  });
+
+  // 6. What's Next (fit-to-slide prose, paginated past the per-slide capacity)
+  const whatsNextItems = content.whatsNext.map((u) => ({ number: u.number, title: u.title, body: u.detail }));
+  chunkRows(whatsNextItems, proseCapacity(R.whatsNext)).forEach((items, page) => {
+    const fonts = fitProseFonts(items.length, R.whatsNext);
+    slides.push({
+      kind: "prose",
+      section: "whatsNext",
+      continuation: page > 0,
+      heading: page === 0 ? R.whatsNext.heading : R.whatsNext.headingCont,
+      titleFontPt: fonts.titleFontPt,
+      bodyFontPt: fonts.bodyFontPt,
+      items,
+    });
+  });
+
+  // 7. Questions & Discussion
+  slides.push({
+    kind: "questions",
+    section: "questions",
+    continuation: false,
+    headingText: R.questions.headingText,
+    thanksText: R.questions.thanksText,
+  });
+
+  // Assign 1-based indices + per-slide overlays (mirrors applyDeckOverlays).
+  const showNumbers = !!options.pageNumbers;
+  const pos = options.pageNumberPosition ?? T.defaults.pageNumberPosition;
+  const footer = options.footerText?.toString().trim() || null;
+  const tag = options.titleTag?.toString().trim() || null;
+  const clientLogoUrl = options.clientLogoUrl?.toString().trim() || null;
+
+  return slides.map((s, i) => ({
+    ...(s as PreviewSlide),
+    index: i + 1,
+    overlays: {
+      pageNumber: showNumbers ? i + 1 : null,
+      pageNumberPosition: pos,
+      footer,
+      tag,
+      // The lockup appears on the title + content slides; the questions slide is
+      // the dedicated closing visual (employee + swoosh) and is left uncluttered.
+      showLockup: s.section !== "questions",
+      clientLogoUrl,
+    },
+  }));
+}
+
+/** Map slide-edit operation types to the deck section(s) they affect. */
+const OP_SECTION: Record<string, SlideSection> = {
+  set_metric: "dashboard",
+  remove_metric: "dashboard",
+  add_priority: "priorities",
+  reword_priority: "priorities",
+  remove_priority: "priorities",
+  add_upcoming: "whatsNext",
+  remove_upcoming: "whatsNext",
+  add_commitment: "followUps",
+  set_commitment_status: "followUps",
+  remove_commitment: "followUps",
+  set_client_name: "title",
+  set_agenda: "agenda",
+  set_meeting_date: "title",
+  set_next_meeting_date: "title",
+};
+
+/**
+ * Given the edit operations applied this turn, return the sections that changed
+ * (used to auto-scroll the preview to the most recently edited slide). Deck-wide
+ * format ops (page numbers / footer / tag) affect every slide and intentionally
+ * return no specific section so the preview stays where it is.
+ */
+export function changedSectionsForOps(opTypes: string[]): SlideSection[] {
+  const out: SlideSection[] = [];
+  for (const t of opTypes) {
+    const section = OP_SECTION[t];
+    if (section && !out.includes(section)) out.push(section);
+  }
+  return out;
+}

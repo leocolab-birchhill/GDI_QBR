@@ -1,0 +1,43 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env files - NEVER commit secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# database (sqlite)
+*.db
+*.db-journal
+prisma/dev.db
+prisma/dev.db-journal
+
+# local storage for generated artifacts
+/storage
+
+# typescript
+*.tsbuildinfo
+
+# testing
+/coverage

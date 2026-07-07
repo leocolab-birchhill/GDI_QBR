@@ -1,0 +1,91 @@
+import { prisma } from "@/lib/db";
+import { env } from "@/lib/env";
+import { getConnectedAccount, isGraphConfigured } from "@/lib/email/providers/graphAuth";
+import {
+  buildAggregates,
+  toDashboardCycle,
+  type AuditEntry,
+  type EmailHealth,
+} from "@/lib/qbr/dashboard";
+import { getServerUiLocale } from "@/lib/i18n/serverLocale";
+import { getStrings } from "@/lib/i18n";
+import DashboardView from "./DashboardView";
+
+export const dynamic = "force-dynamic";
+
+export default async function DashboardPage() {
+  const [rawCycles, rawAudit, graphAcct] = await Promise.all([
+    prisma.qbrCycle.findMany({
+      orderBy: { updatedAt: "desc" },
+      include: {
+        account: {
+          include: {
+            vpOwner: { select: { id: true, name: true, email: true } },
+            director: { select: { id: true, name: true, email: true } },
+            accountManager: { select: { id: true, name: true, email: true } },
+          },
+        },
+        missingInfoRequests: { where: { status: "Open" } },
+        dashboardMetrics: { select: { isConfirmed: true, value: true } },
+        deckVersions: { orderBy: { versionNumber: "desc" }, take: 1 },
+        approvals: { where: { status: "approved" }, take: 1 },
+        emailThreads: {
+          include: {
+            messages: { orderBy: { receivedAt: "desc" }, take: 1, select: { receivedAt: true } },
+          },
+        },
+      },
+    }),
+    prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 12 }),
+    getConnectedAccount(),
+  ]);
+
+  const locale = getServerUiLocale();
+  const s = getStrings(locale).dashboard;
+  const cycles = rawCycles.map((c) => toDashboardCycle(c, locale));
+  const aggregates = buildAggregates(cycles);
+
+  const audit: AuditEntry[] = rawAudit.map((e) => ({
+    id: e.id,
+    action: e.action,
+    entityType: e.entityType,
+    actorEmail: e.actorEmail,
+    createdAt: e.createdAt.toISOString(),
+  }));
+
+  const emailHealth: EmailHealth = {
+    provider: env.EMAIL_PROVIDER,
+    configured: isGraphConfigured(),
+    connected: Boolean(graphAcct?.refreshToken),
+    // Show the QBR robot mailbox the system operates as, not the personal
+    // account used to authorize the Graph connection.
+    email: env.QBR_MAILBOX || graphAcct?.email || null,
+  };
+
+  if (cycles.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">{s.emptyTitle}</h1>
+          <p className="text-muted-foreground">{s.subtitle}</p>
+        </div>
+        <div className="rounded-lg border bg-card py-10 text-center text-muted-foreground shadow-sm">
+          {s.emptyState}{" "}
+          <a href="/api-test/email" className="text-primary underline">
+            {getStrings(locale).nav.emailSim}
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <DashboardView
+      cycles={cycles}
+      aggregates={aggregates}
+      audit={audit}
+      emailHealth={emailHealth}
+      locale={locale}
+    />
+  );
+}

@@ -1,0 +1,332 @@
+// GDI QBR OS — Prisma schema
+// NOTE: provider is SQLite for zero-config local dev (DATABASE_URL=file:./dev.db).
+// To use Postgres, change provider to "postgresql" and point DATABASE_URL at it.
+// SQLite has no native enums/arrays; enum-like fields are strings whose allowed
+// values are documented in src/lib/constants.ts (kept as the single source of truth).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      String   @default("Viewer") // Admin | VP | Director | AccountManager | Viewer
+  createdAt DateTime @default(now())
+
+  accountsAsVp       Account[] @relation("VpOwner")
+  accountsAsDirector Account[] @relation("Director")
+  accountsAsManager  Account[] @relation("AccountManager")
+  createdQbrCycles   QbrCycle[] @relation("QbrCreatedBy")
+}
+
+model Account {
+  id              String   @id @default(cuid())
+  clientName      String
+  region          String?
+  vpOwnerId       String?
+  directorId      String?
+  accountManagerId String?
+  status          String   @default("Active") // Active | Inactive
+  // Client logo URL (served via /api/files or external URL).
+  logoUrl         String?
+  // Preferred language for this client: "fr" | "en". Defaults to French (Quebec launch).
+  language        String   @default("fr")
+  // Extra client metadata (industry, notes, etc.) as JSON.
+  metadataJson    String   @default("{}")
+  createdAt       DateTime @default(now())
+
+  vpOwner        User? @relation("VpOwner", fields: [vpOwnerId], references: [id])
+  director       User? @relation("Director", fields: [directorId], references: [id])
+  accountManager User? @relation("AccountManager", fields: [accountManagerId], references: [id])
+
+  contacts  ClientContact[]
+  qbrCycles QbrCycle[]
+}
+
+model ClientContact {
+  id             String  @id @default(cuid())
+  accountId      String
+  name           String
+  email          String
+  role           String?
+  isDecisionMaker Boolean @default(false)
+
+  account       Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  clientSurveys ClientSurvey[]
+}
+
+model QbrCycle {
+  id               String   @id @default(cuid())
+  accountId        String
+  quarter          String   // e.g. "Q1"
+  year             Int
+  meetingDate      DateTime?
+  // Standardized next-QBR / next-meeting date so "when is the next meeting?" is
+  // answerable from a single deterministic field (not just an open checklist Q).
+  nextMeetingDate  DateTime?
+  status           String   @default("DRAFT_CREATED")
+  createdById      String?
+  previousQbrNotes String?
+  // Presentation-level deck options the live editor can change (page numbers,
+  // footer text, title tag/badge, and forward-compatible extras). JSON blob so
+  // new format toggles never require a migration.
+  deckOptionsJson  String   @default("{}")
+  // Language override for this QBR ("fr" | "en"). Falls back to account.language.
+  language         String?
+  // Custom agenda section order/labels (JSON array of strings).
+  agendaSectionsJson String?
+  // Guided editor progress: current slide index, confirmed sections, etc.
+  editorProgressJson String @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("QbrCreatedBy", fields: [createdById], references: [id])
+
+  emailThreads        EmailThread[]
+  attachments         Attachment[]
+  commitments         Commitment[]
+  priorityItems       PriorityItem[]
+  dashboardMetrics    DashboardMetric[]
+  upcomingItems       UpcomingItem[]
+  missingInfoRequests MissingInfoRequest[]
+  deckVersions        DeckVersion[]
+  approvals           Approval[]
+  clientSurveys       ClientSurvey[]
+  internalSurveys     InternalSentimentSurvey[]
+  editorMessages      EditorMessage[]
+}
+
+// Persisted chat messages for the collaborative slide editor (shared link).
+model EditorMessage {
+  id          String   @id @default(cuid())
+  qbrCycleId  String
+  role        String   // user | assistant | system
+  text        String
+  actorEmail  String?
+  actorName   String?
+  metadataJson String? // applied changes, suggestions, deck ref, etc.
+  createdAt   DateTime @default(now())
+
+  qbrCycle QbrCycle @relation(fields: [qbrCycleId], references: [id], onDelete: Cascade)
+}
+
+model EmailThread {
+  id              String  @id @default(cuid())
+  qbrCycleId      String?
+  providerThreadId String?
+  // Microsoft Graph conversationId (and equivalents). All emails in the same
+  // provider conversation map to the same QBR cycle via this thread.
+  conversationId   String?
+  subject         String?
+
+  qbrCycle QbrCycle?      @relation(fields: [qbrCycleId], references: [id], onDelete: SetNull)
+  messages EmailMessage[]
+}
+
+model EmailMessage {
+  id         String   @id @default(cuid())
+  threadId   String
+  fromEmail  String
+  toEmail    String
+  subject    String?
+  bodyText   String?
+  direction  String   // inbound | outbound
+  receivedAt DateTime @default(now())
+
+  // Provider threading/reply metadata — used to send outbound replies in-thread
+  // (Graph reply/createReply) and to reconstruct RFC 5322 references.
+  providerMessageId String?
+  internetMessageId String?
+  conversationId    String?
+  inReplyTo         String?
+  references        String?
+
+  thread      EmailThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
+}
+
+model Attachment {
+  id             String  @id @default(cuid())
+  emailMessageId String?
+  qbrCycleId     String?
+  filename       String
+  mimeType       String?
+  fileUrl        String?
+  extractedText  String?
+
+  emailMessage EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+  qbrCycle     QbrCycle?     @relation(fields: [qbrCycleId], references: [id], onDelete: SetNull)
+}
+
+model Commitment {
+  id             String   @id @default(cuid())
+  qbrCycleId     String
+  action         String
+  status         String   @default("Open") // Open | In Progress | Complete | To confirm
+  owner          String?
+  dueDate        DateTime?
+  rawInput       String?
+  clientReadyText String?
+  isClientSafe   Boolean  @default(false)
+  source         String?  // email | survey | rollforward | manual
+  createdAt      DateTime @default(now())
+
+  qbrCycle QbrCycle @relation(fields: [qbrCycleId], references: [id], onDelete: Cascade)
+}
+
+model PriorityItem {
+  id             String  @id @default(cuid())
+  qbrCycleId     String
+  title          String
+  rawInput       String?
+  clientReadyText String?
+  category       String? // Health & Safety | Operational | Financial | Relationship | Other
+  needsDecision  Boolean @default(false)
+  timing         String?
+  sortOrder      Int     @default(0)
+  isApproved     Boolean @default(false)
+
+  qbrCycle QbrCycle @relation(fields: [qbrCycleId], references: [id], onDelete: Cascade)
+}
+
+model DashboardMetric {
+  id           String   @id @default(cuid())
+  qbrCycleId   String
+  group        String   // Health & Safety | Operational | Financial
+  label        String
+  value        String?
+  source       String?
+  isConfirmed  Boolean  @default(false)
+  owner        String?
+  dueDate      DateTime?
+  isClientSafe Boolean  @default(true)
+
+  qbrCycle QbrCycle @relation(fields: [qbrCycleId], references: [id], onDelete: Cascade)
+}
+
+model UpcomingItem {
+  id             String  @id @default(cuid())
+  qbrCycleId     String
+  title          String
+  rawInput       String?
+  clientReadyText String?
+  timing         String?
+  sortOrder      Int     @default(0)
+
+  qbrCycle QbrCycle @relation(fields: [qbrCycleId], references: [id], onDelete: Cascade)
+}
+
+model MissingInfoRequest {
+  id             String   @id @default(cuid())
+  qbrCycleId     String
+  field          String
+  question       String
+  assignedToEmail String?
+  status         String   @default("Open") // Open | Answered | Waived
+  dueDate        DateTime?
+
+  qbrCycle QbrCycle @relation(fields: [qbrCycleId], references: [id], onDelete: Cascade)
+}
+
+model DeckVersion {
+  id            String   @id @default(cuid())
+  qbrCycleId    String
+  versionNumber Int
+  status        String   @default("draft") // draft | final
+  fileUrl       String?
+  // Human-readable file/deck name and a JSON snapshot of the exact slide content
+  // this version rendered. Lets the assistant recall "what the last presentation
+  // said" and map drafts/final decks to their generation date.
+  title         String?
+  contentJson   String?
+  createdAt     DateTime @default(now())
+
+  qbrCycle QbrCycle @relation(fields: [qbrCycleId], references: [id], onDelete: Cascade)
+}
+
+model Approval {
+  id           String   @id @default(cuid())
+  qbrCycleId   String
+  approverEmail String
+  status       String   // approved | revision_requested | rejected
+  comments     String?
+  createdAt    DateTime @default(now())
+
+  qbrCycle QbrCycle @relation(fields: [qbrCycleId], references: [id], onDelete: Cascade)
+}
+
+model ClientSurvey {
+  id                  String  @id @default(cuid())
+  qbrCycleId          String
+  clientContactId     String?
+  overallScore        Int?
+  serviceQualityScore Int?
+  issueResolutionScore Int?
+  communicationScore  Int?
+  adminScore          Int?
+  billingScore        Int?
+  comments            String?
+  createdAt           DateTime @default(now())
+
+  qbrCycle      QbrCycle       @relation(fields: [qbrCycleId], references: [id], onDelete: Cascade)
+  clientContact ClientContact? @relation(fields: [clientContactId], references: [id], onDelete: SetNull)
+}
+
+model InternalSentimentSurvey {
+  id                 String   @id @default(cuid())
+  qbrCycleId         String
+  respondentEmail    String
+  perceivedClientScore Int?
+  notes              String?
+  createdAt          DateTime @default(now())
+
+  qbrCycle QbrCycle @relation(fields: [qbrCycleId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  entityType String
+  entityId   String?
+  action     String
+  actorEmail String?
+  metadata   String?  // JSON string
+  createdAt  DateTime @default(now())
+}
+
+// OAuth token storage for email providers (e.g. Microsoft Graph).
+// Single row per provider (id = provider name, e.g. "graph").
+model EmailAccount {
+  id           String   @id // provider key, e.g. "graph"
+  provider     String
+  email        String?
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  scope        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Singleton-ish key/value store for admin settings (one row, id = "default").
+model AppSettings {
+  id                       String   @id @default("default")
+  sharedMailbox            String   @default("qbr@gdi.com")
+  senderDisplayName        String   @default("GDI QBR OS")
+  reminderCadenceJson      String   @default("{}")
+  clientSurveyTemplateJson String   @default("[]")
+  internalSurveyTemplateJson String @default("[]")
+  rolePermissionsJson      String   @default("{}")
+  requireVpApproval        Boolean  @default(true)
+  allowFinalizeOverride    Boolean  @default(false)
+  pptTemplatePath          String?
+  dataSourcePlaceholdersJson String @default("{}")
+  updatedAt                DateTime @updatedAt
+}
