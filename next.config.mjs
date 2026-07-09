@@ -1,4 +1,9 @@
 /** @type {import('next').NextConfig} */
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 const nextConfig = {
   reactStrictMode: true,
   // Smaller production bundle for Databricks Apps deploys.
@@ -14,6 +19,10 @@ const nextConfig = {
     ],
     // Run src/instrumentation.ts on server boot (starts the inbox poller).
     instrumentationHook: true,
+  },
+  webpack: (config) => {
+    config.resolve.alias["@"] = path.join(__dirname, "src");
+    return config;
   },
 };
 
