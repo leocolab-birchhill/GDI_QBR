@@ -1,6 +1,6 @@
 // GDI QBR OS — Prisma schema
-// Production (Databricks Apps): Lakebase Postgres via @databricks/lakebase adapter.
-// Local dev: docker compose up -d && DATABASE_URL=postgresql://qbr:qbr@localhost:5432/qbr
+// Production (Databricks Apps): Lakebase via PGHOST + LAKEBASE_ENDPOINT (see databaseUrl.ts).
+// Local dev: docker compose && DATABASE_URL=postgresql://qbr:qbr@localhost:5432/qbr
 // Enum-like fields are strings — allowed values in src/lib/constants.ts.
 
 generator client {

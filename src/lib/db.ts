@@ -1,31 +1,31 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { createLakebasePool } from "@databricks/lakebase";
+import { ensureDatabaseUrl, lakebaseEnvPresent } from "./databaseUrl";
 
 /**
  * Singleton Prisma client (avoids exhausting connections during HMR in dev).
  *
  * Production (Databricks Apps + Lakebase): uses @databricks/lakebase OAuth pool
- * when LAKEBASE_ENDPOINT or PGHOST is present.
+ * when PGHOST + LAKEBASE_ENDPOINT are injected by the platform.
  *
  * Local dev: standard DATABASE_URL (docker compose Postgres).
  */
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-function usesLakebase(): boolean {
-  return Boolean(
-    process.env.LAKEBASE_ENDPOINT?.trim() ||
-      (process.env.PGHOST?.trim() && process.env.DATABRICKS_CLIENT_ID?.trim()),
-  );
+function usesLakebaseAdapter(): boolean {
+  return lakebaseEnvPresent() && Boolean(process.env.DATABRICKS_CLIENT_ID?.trim());
 }
 
 function createPrismaClient(): PrismaClient {
+  ensureDatabaseUrl();
+
   const log =
     process.env.NODE_ENV === "development"
       ? (["warn", "error"] as const)
       : (["error"] as const);
 
-  if (usesLakebase()) {
+  if (usesLakebaseAdapter()) {
     const pool = createLakebasePool();
     const adapter = new PrismaPg(pool);
     return new PrismaClient({ adapter, log: [...log] });

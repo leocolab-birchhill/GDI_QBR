@@ -10,7 +10,7 @@
     "build:local": "cross-env NODE_OPTIONS=--use-system-ca prisma generate && cross-env NODE_OPTIONS=--use-system-ca next build",
     "start": "NODE_OPTIONS=--use-system-ca next start -p ${DATABRICKS_APP_PORT:-8000} -H 0.0.0.0",
     "start:local": "node scripts/databricks-start.mjs",
-    "db:migrate": "prisma migrate deploy",
+    "db:migrate": "node scripts/db-migrate.mjs",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

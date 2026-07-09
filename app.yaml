@@ -16,11 +16,8 @@ env:
   - name: NODE_OPTIONS
     value: "--use-system-ca"
 
-  # Prisma requires DATABASE_URL in schema; Lakebase auth uses PGHOST + adapter.
-  - name: DATABASE_URL
-    value: postgresql://lakebase@localhost:5432/databricks_postgres?schema=public
-
-  # Lakebase Postgres (auto-injects PGHOST, PGDATABASE, PGUSER, PGSSLMODE, …)
+  # Lakebase Postgres — platform injects PGHOST, PGDATABASE, PGUSER, PGPORT, PGSSLMODE.
+  # DATABASE_URL is built at runtime in src/lib/databaseUrl.ts (do not set a fake URL here).
   - name: LAKEBASE_ENDPOINT
     valueFrom: postgres
 
