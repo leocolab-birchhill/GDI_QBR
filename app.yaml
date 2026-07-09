@@ -6,7 +6,7 @@
 command:
   - sh
   - -c
-  - NODE_OPTIONS=--use-system-ca next start -p ${DATABRICKS_APP_PORT:-8000} -H 0.0.0.0
+  - npx prisma migrate deploy && npm run build && NODE_OPTIONS=--use-system-ca next start -p ${DATABRICKS_APP_PORT:-8000} -H 0.0.0.0
 
 env:
   - name: NODE_ENV
