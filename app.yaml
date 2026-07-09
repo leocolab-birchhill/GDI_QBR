@@ -4,9 +4,9 @@
 # Resource keys must match the Databricks App resources attached in the UI.
 
 command:
-  - sh
-  - -c
-  - npx prisma migrate deploy && npm run build && NODE_OPTIONS=--use-system-ca next start -p ${DATABRICKS_APP_PORT:-8000} -H 0.0.0.0
+  - npm
+  - run
+  - start
 
 env:
   - name: NODE_ENV
