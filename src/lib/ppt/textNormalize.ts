@@ -130,11 +130,21 @@ export function normalizeSlideContent(content: SlideContent): SlideContent {
       healthAndSafety: content.dashboard.healthAndSafety.map((r) => ({ label: toLabel(r.label), value: toValue(r.value) })),
       operational: content.dashboard.operational.map((r) => ({ label: toLabel(r.label), value: toValue(r.value) })),
       financial: content.dashboard.financial.map((r) => ({ label: toLabel(r.label), value: toValue(r.value) })),
+      customGroups: content.dashboard.customGroups?.map((g) => ({
+        title: toLabel(g.title),
+        rows: g.rows.map((r) => ({ label: toLabel(r.label), value: toValue(r.value) })),
+      })),
+      hiddenGroups: content.dashboard.hiddenGroups,
     },
     whatsNext: content.whatsNext.map((u) => ({
       number: u.number,
       title: toHeadline(u.title),
       detail: toSentence(u.detail),
     })),
+    // Deck structure passes through untouched (custom slide bodies keep the
+    // user's exact line/cell formatting; only the title is headline-styled).
+    customSlides: content.customSlides?.map((s) => ({ ...s, title: toHeadline(s.title) })),
+    hiddenSections: content.hiddenSections,
+    sectionOrder: content.sectionOrder,
   };
 }

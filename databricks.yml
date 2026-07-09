@@ -1,0 +1,87 @@
+# Databricks Asset Bundle — GDI QBR OS
+# Used for CLI deploys and GitHub Actions CI/CD.
+#
+# Setup:
+#   1. Fill in variables below (or pass via CLI flags).
+#   2. Create secret scope: gdi-qbr-os-secrets (see env.example).
+#   3. databricks bundle validate
+#   4. databricks bundle deploy -t dev
+#   5. databricks bundle run gdi-qbr-os -t dev
+#
+# Docs: https://docs.databricks.com/dev-tools/bundles/
+
+bundle:
+  name: gdi-qbr-os
+
+variables:
+  app_name:
+    description: Databricks App name (lowercase, hyphens only — must match the app you created)
+    default: business-review-agent
+  lakebase_branch:
+    description: Full Lakebase branch path (Lakebase → project → Branches → copy path)
+    default: projects/business_report_postgress/branches/production
+  lakebase_database:
+    description: Full Lakebase database path (Lakebase → project → Databases → copy path)
+    default: projects/business_report_postgress/branches/production/databases/databricks_postgres
+  volume_catalog:
+    description: Unity Catalog catalog for file storage
+    default: databricks_prd
+  volume_schema:
+    description: Unity Catalog schema for file storage
+    default: default
+  volume_name:
+    description: UC Volume name for generated PPTX / logos
+    default: br_ppt_storage
+  secret_scope:
+    description: Databricks secret scope for app secrets
+    default: gdi-qbr-os-secrets
+
+targets:
+  dev:
+    mode: development
+    default: true
+  prod:
+    mode: production
+
+resources:
+  apps:
+    gdi-qbr-os:
+      name: ${var.app_name}
+      description: GDI QBR OS — email-first Quarterly Business Review operating system
+      source_code_path: .
+      resources:
+        # Lakebase Postgres — persistent app database
+        - name: postgres
+          postgres:
+            branch: ${var.lakebase_branch}
+            database: ${var.lakebase_database}
+            permission: CAN_CONNECT_AND_CREATE
+
+        # Unity Catalog volume — generated decks, logos, attachments
+        - name: storage-volume
+          uc_securable:
+            securable_type: VOLUME
+            securable_full_name: ${var.volume_catalog}.${var.volume_schema}.${var.volume_name}
+            permission: WRITE_VOLUME
+
+        # Secrets (create scope + keys before deploy)
+        - name: openai-secret
+          secret:
+            scope: ${var.secret_scope}
+            key: OPENAI_API_KEY
+            permission: READ
+        - name: app-secret
+          secret:
+            scope: ${var.secret_scope}
+            key: SECRET_KEY
+            permission: READ
+        - name: ms-client-id-secret
+          secret:
+            scope: ${var.secret_scope}
+            key: MICROSOFT_CLIENT_ID
+            permission: READ
+        - name: ms-client-secret
+          secret:
+            scope: ${var.secret_scope}
+            key: MICROSOFT_CLIENT_SECRET
+            permission: READ

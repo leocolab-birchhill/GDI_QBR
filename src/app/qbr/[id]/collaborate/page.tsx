@@ -47,6 +47,7 @@ export default async function CollaboratePage({ params }: { params: { id: string
       qbrCycleId: qbr.id,
       role: "assistant",
       text: welcomeText,
+      section: progress.guidedMode ? progress.currentSection : undefined,
       metadata: {
         welcome: true,
         deck: latest?.fileUrl ? { fileUrl: latest.fileUrl, versionNumber: latest.versionNumber } : null,
@@ -68,6 +69,7 @@ export default async function CollaboratePage({ params }: { params: { id: string
       id: m.id,
       role: m.role as "user" | "assistant",
       text: m.text,
+      section: m.section ?? undefined,
       actorName: m.actorName ?? undefined,
       applied: meta.applied as string[] | undefined,
       deck: meta.deck as { fileUrl: string; versionNumber: number } | undefined,

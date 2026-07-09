@@ -2,10 +2,18 @@ import { promises as fs } from "fs";
 import path from "path";
 import PptxGenJS from "pptxgenjs";
 import { SlideContent } from "../ai/schemas";
+import type { CustomSlide } from "../ai/schemas";
 import { TO_CONFIRM } from "../constants";
 import { DECK_THEME } from "./deckTheme";
 import { localizedTheme } from "./localizedTheme";
 import { normalizeSlideContent } from "./textNormalize";
+import {
+  resolveDeckSequence,
+  parseCustomProse,
+  parseCustomTable,
+  customContHeading,
+  type SlideSection,
+} from "./slideManifest";
 import { readFile as readStorageFile } from "../storage";
 import type { LocalizedTheme } from "./localizedTheme";
 
@@ -41,10 +49,12 @@ const F = T.font;
 /** Active render theme (geometry + localized strings). Set per generateQbrDeck call. */
 let R: LocalizedTheme = localizedTheme("fr");
 let CONFIRM = TO_CONFIRM;
+let RENDER_LOCALE: string | null = "fr";
 
 function setRenderLocale(locale?: string | null) {
   R = localizedTheme(locale);
   CONFIRM = R.toConfirm;
+  RENDER_LOCALE = locale ?? "fr";
 }
 
 /** Number of CORE client-facing sections. Continuation slides may add more. */
@@ -158,22 +168,39 @@ export async function generateQbrDeck(
   pptx.theme = { headFontFace: F.heading, bodyFontFace: F.body };
 
   const titleSlide = slideTitle(pptx, content, options);
-  const contentSlides: PptxGenJS.Slide[] = [
-    ...slideAgenda(pptx, content),
-    ...slideFollowUps(pptx, content),
-    ...slidePriorities(pptx, content),
-    ...slideDashboard(pptx, content),
-    ...slideWhatsNext(pptx, content),
-  ];
-  const questionsSlide = slideQuestions(pptx, brand);
+  const sequence = resolveDeckSequence(content);
+  const allSlides: PptxGenJS.Slide[] = [];
 
-  // Co-branding lockup (client logo | GDI logo) on the title + content slides.
-  // The questions slide is the dedicated closing visual and is left uncluttered.
-  for (const slide of [titleSlide, ...contentSlides]) {
-    addBrandLockup(slide, brand);
+  const sectionBuilders: Record<SlideSection, () => PptxGenJS.Slide[]> = {
+    title: () => [titleSlide],
+    agenda: () => slideAgenda(pptx, content),
+    followUps: () => slideFollowUps(pptx, content),
+    priorities: () => slidePriorities(pptx, content),
+    dashboard: () => slideDashboard(pptx, content),
+    whatsNext: () => slideWhatsNext(pptx, content),
+    questions: () => [slideQuestions(pptx, brand)],
+  };
+
+  for (const entry of sequence) {
+    if (entry.type === "section") {
+      allSlides.push(...sectionBuilders[entry.section]());
+    } else {
+      allSlides.push(...slideCustom(pptx, entry.slide));
+    }
   }
 
-  const slides: PptxGenJS.Slide[] = [titleSlide, ...contentSlides, questionsSlide];
+  const lastIsQuestions =
+    sequence.length > 0 &&
+    sequence[sequence.length - 1].type === "section" &&
+    (sequence[sequence.length - 1] as { section: SlideSection }).section === "questions";
+
+  for (let i = 0; i < allSlides.length; i++) {
+    if (!(lastIsQuestions && i === allSlides.length - 1)) {
+      addBrandLockup(allSlides[i], brand);
+    }
+  }
+
+  const slides: PptxGenJS.Slide[] = allSlides;
 
   // Apply deck-wide overlays (page numbers / footer / tag) to every slide.
   applyDeckOverlays(slides, options);
@@ -520,15 +547,22 @@ function slidePriorities(pptx: PptxGenJS, c: SlideContent): PptxGenJS.Slide[] {
 
 function slideDashboard(pptx: PptxGenJS, c: SlideContent): PptxGenJS.Slide[] {
   const d = R.dashboard;
+  const hiddenGroups = new Set((c.dashboard.hiddenGroups ?? []).map((g) => g.trim().toLowerCase()));
+  const isHidden = (...names: string[]) => names.some((n) => hiddenGroups.has(n.trim().toLowerCase()));
   const groups: { title: string; rows: { label: string; value: string }[] }[] = [
-    { title: d.groupTitles.healthAndSafety, rows: c.dashboard.healthAndSafety },
-    { title: d.groupTitles.operational, rows: c.dashboard.operational },
-    { title: d.groupTitles.financial, rows: c.dashboard.financial },
-    ...(c.dashboard.customGroups ?? []),
-  ].map((g) => ({
-    title: g.title,
-    rows: g.rows.length ? g.rows : [{ label: d.emptyRow.label, value: CONFIRM }],
-  }));
+    { title: d.groupTitles.healthAndSafety, rows: c.dashboard.healthAndSafety, hidden: isHidden("Health & Safety", d.groupTitles.healthAndSafety) },
+    { title: d.groupTitles.operational, rows: c.dashboard.operational, hidden: isHidden("Operational", d.groupTitles.operational) },
+    { title: d.groupTitles.financial, rows: c.dashboard.financial, hidden: isHidden("Financial", d.groupTitles.financial) },
+    ...(c.dashboard.customGroups ?? []).map((g) => ({ title: g.title, rows: g.rows, hidden: isHidden(g.title) })),
+  ]
+    .filter((g) => !g.hidden)
+    .map((g) => ({
+      title: g.title,
+      rows: g.rows.length ? g.rows : [{ label: d.emptyRow.label, value: CONFIRM }],
+    }));
+  if (groups.length === 0) {
+    groups.push({ title: d.groupTitles.operational, rows: [{ label: d.emptyRow.label, value: CONFIRM }] });
+  }
 
   const available = T.safeArea.contentBottom - d.tableY;
   const rowsPerSlide = Math.max(1, Math.floor(available / d.rowH));
@@ -654,6 +688,82 @@ function renderProseList(
     }
     return slide;
   });
+}
+
+/** User-created custom slide (prose or generic table). */
+function slideCustom(pptx: PptxGenJS, custom: CustomSlide): PptxGenJS.Slide[] {
+  const cont = customContHeading(custom.title, RENDER_LOCALE);
+  if (custom.kind === "table") {
+    const ft = R.followUpsTable;
+    const { headers, rows } = parseCustomTable(custom.body);
+    const available = T.safeArea.contentBottom - ft.y;
+    const rowsPerSlide = Math.max(1, Math.floor(available / ft.rowH) - 1);
+    const colW = headers.map(() => ft.w / Math.max(headers.length, 1));
+    const pages = chunkRows(rows, rowsPerSlide);
+    return pages.map((pageRows, page) => {
+      const slide = pptx.addSlide();
+      sectionHeader(slide, page === 0 ? custom.title : cont);
+      const tableRows: PptxGenJS.TableRow[] = [
+        headers.map((h) => ({
+          text: h,
+          options: {
+            bold: true,
+            color: C.tableHeaderText,
+            fill: { color: C.primary },
+            fontSize: ft.headerFontSize,
+            fontFace: F.heading,
+            align: "left" as PptxGenJS.HAlign,
+            valign: "middle" as PptxGenJS.VAlign,
+            margin: ptMargin(ft.cellPad),
+          },
+        })),
+        ...pageRows.map((vals, ri) =>
+          vals.map((text) => ({
+            text,
+            options: {
+              fontSize: ft.bodyFontSize,
+              fontFace: F.body,
+              color: C.text,
+              fill: { color: ri % 2 ? C.rowAltFill : C.white },
+              align: "left" as PptxGenJS.HAlign,
+              valign: "middle" as PptxGenJS.VAlign,
+              margin: ptMargin(ft.cellPad),
+            },
+          })),
+        ),
+      ];
+      slide.addTable(tableRows, {
+        x: ft.x,
+        y: ft.y,
+        w: ft.w,
+        colW,
+        border: { type: "solid", color: C.tableGrid, pt: T.table.borderPt },
+        fontSize: ft.bodyFontSize,
+        fontFace: F.body,
+        valign: "middle",
+        rowH: [ft.headerRowH, ...pageRows.map(() => ft.rowH)],
+      });
+      return slide;
+    });
+  }
+  const items = parseCustomProse(custom.body);
+  const w = R.whatsNext;
+  const cfg = { ...w, heading: custom.title, headingCont: cont };
+  if (items.length === 0) {
+    const slide = pptx.addSlide();
+    sectionHeader(slide, custom.title);
+    slide.addText(w.emptyText, {
+      x: w.empty.x,
+      y: w.empty.y,
+      w: w.empty.w,
+      h: w.empty.h,
+      fontSize: w.empty.fontSize,
+      color: C.greyText,
+      fontFace: F.body,
+    });
+    return [slide];
+  }
+  return renderProseList(pptx, items, cfg);
 }
 
 function slideQuestions(pptx: PptxGenJS, brand: BrandAssets): PptxGenJS.Slide {

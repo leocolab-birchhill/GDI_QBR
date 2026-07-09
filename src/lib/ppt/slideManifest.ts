@@ -1,4 +1,4 @@
-import type { SlideContent } from "../ai/schemas";
+import type { CustomSlide, SlideContent } from "../ai/schemas";
 import type { DeckOptions } from "./generateQbrDeck";
 import { TO_CONFIRM } from "../constants";
 import { DECK_THEME } from "./deckTheme";
@@ -45,6 +45,8 @@ interface BaseSlide {
   /** 1-based slide number, matching the rendered .pptx. */
   index: number;
   section: SlideSection;
+  /** Set for user-created custom slides (the CustomSlide id). */
+  customId?: string;
   /** True for "(cont.)" continuation slides. */
   continuation: boolean;
   overlays: SlideOverlays;
@@ -128,6 +130,107 @@ function agendaCapacity(cfg: { yStart: number; step: number }): number {
   return Math.max(1, Math.floor(available / cfg.step));
 }
 
+/** Default order of the movable middle sections. */
+const DEFAULT_MIDDLE_ORDER: SlideSection[] = [
+  "agenda",
+  "followUps",
+  "priorities",
+  "dashboard",
+  "whatsNext",
+];
+
+/** One entry of the deck's slide sequence: a built-in section or a custom slide. */
+export type DeckEntry =
+  | { type: "section"; section: SlideSection }
+  | { type: "custom"; slide: CustomSlide; anchorSection: SlideSection };
+
+/**
+ * Resolve the deck's slide sequence from the content's layout fields: apply the
+ * custom section order, drop hidden sections, and interleave custom slides
+ * after their anchor sections. Shared by the live preview manifest AND the
+ * .pptx renderer so both always agree on slide order.
+ */
+export function resolveDeckSequence(content: SlideContent): DeckEntry[] {
+  const hidden = new Set((content.hiddenSections ?? []).filter((s) => s !== "title"));
+  const stored = (content.sectionOrder ?? []).filter((s) =>
+    DEFAULT_MIDDLE_ORDER.includes(s as SlideSection),
+  ) as SlideSection[];
+  const middle = [...stored, ...DEFAULT_MIDDLE_ORDER.filter((s) => !stored.includes(s))];
+  const sections = (["title", ...middle, "questions"] as SlideSection[]).filter(
+    (s) => !hidden.has(s),
+  );
+
+  const customs = content.customSlides ?? [];
+  const used = new Set<string>();
+  const entries: DeckEntry[] = [];
+  for (const section of sections) {
+    entries.push({ type: "section", section });
+    for (const c of customs) {
+      if (c.afterSection === section && !used.has(c.id)) {
+        entries.push({ type: "custom", slide: c, anchorSection: section });
+        used.add(c.id);
+      }
+    }
+  }
+  // Custom slides anchored to a hidden/unknown section still render, placed
+  // just before the closing questions slide (or at the end when it is hidden).
+  const leftovers = customs.filter((c) => !used.has(c.id));
+  if (leftovers.length) {
+    const qIdx = entries.findIndex((e) => e.type === "section" && e.section === "questions");
+    const anchor: SlideSection =
+      qIdx > 0 && entries[qIdx - 1].type === "section"
+        ? (entries[qIdx - 1] as { section: SlideSection }).section
+        : "whatsNext";
+    const items: DeckEntry[] = leftovers.map((slide) => ({
+      type: "custom",
+      slide,
+      anchorSection: anchor,
+    }));
+    if (qIdx >= 0) entries.splice(qIdx, 0, ...items);
+    else entries.push(...items);
+  }
+  return entries;
+}
+
+/**
+ * Parse a custom prose slide body: one item per line; "Title: detail" (or
+ * "Title - detail") splits into a bold headline + body, a plain line becomes a
+ * headline with no body.
+ */
+export function parseCustomProse(body: string): { number: number; title: string; body: string }[] {
+  const lines = body
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  return lines.map((line, i) => {
+    const m = line.match(/^(.{1,80}?)\s*(?::|\s[—–-]\s)\s*(.+)$/);
+    if (m) return { number: i + 1, title: m[1].trim(), body: m[2].trim() };
+    return { number: i + 1, title: line, body: "" };
+  });
+}
+
+/**
+ * Parse a custom table slide body: one row per line, cells separated by "|".
+ * The first line is the header row; rows are padded to the widest line.
+ */
+export function parseCustomTable(body: string): { headers: string[]; rows: string[][] } {
+  const lines = body
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => l.replace(/^\|/, "").replace(/\|$/, ""))
+    .map((l) => l.split("|").map((c) => c.trim()));
+  if (lines.length === 0) return { headers: ["Item", "Detail"], rows: [] };
+  const width = Math.max(...lines.map((r) => r.length));
+  const padded = lines.map((r) => [...r, ...Array(Math.max(0, width - r.length)).fill("")]);
+  return { headers: padded[0], rows: padded.slice(1) };
+}
+
+/** Localized "(cont.)" heading for a custom slide's continuation pages. */
+export function customContHeading(title: string, locale?: string | null): string {
+  return locale === "en" ? `${title} (cont.)` : `${title} (suite)`;
+}
+
 export function buildDeckManifest(
   rawContent: SlideContent,
   options: DeckOptions = {},
@@ -140,122 +243,200 @@ export function buildDeckManifest(
   const content = normalizeSlideContent(rawContent);
   const slides: SlideBody[] = [];
 
-  // 1. Title
-  slides.push({
-    kind: "title",
-    section: "title",
-    continuation: false,
-    clientName: content.title.clientName,
-    quarterYear: content.title.quarterYear,
-    headingText: R.title.heading.text,
-    meetingMonthYear: content.title.meetingMonthYear,
-  });
-
-  // 2. Agenda (paginated — overflow items flow onto continuation slides)
-  const a = R.agenda;
-  const agendaItems = (content.agenda.length > 0 ? content.agenda : [...a.fallbackItems]).map(
-    (label, i) => ({ number: i + a.startNumber, label }),
-  );
-  const agendaPerSlide = agendaCapacity(a);
-  chunkRows(agendaItems, agendaPerSlide).forEach((items, page) => {
-    slides.push({
-      kind: "agenda",
-      section: "agenda",
-      continuation: page > 0,
-      heading: page === 0 ? a.heading : a.headingCont,
-      items,
-    });
-  });
-
-  // 3. Open Follow-Ups & Progress (paginated table)
-  const ft = R.followUpsTable;
-  const followRows: string[][] =
-    content.followUps.length === 0
-      ? [[...ft.emptyRow, confirm, confirm, confirm]]
-      : content.followUps.map((f) => [String(f.number), f.action, f.status, f.owner, f.dueDate]);
-  const followAvail = T.safeArea.contentBottom - ft.y;
-  const followPerSlide = Math.max(1, Math.floor(followAvail / ft.rowH) - 1);
-  const colTotal = ft.colW.reduce((a, b) => a + b, 0);
-  const followColPct = ft.colW.map((c) => (c / colTotal) * 100);
-  chunkRows(followRows, followPerSlide).forEach((rows, page) => {
-    slides.push({
-      kind: "table",
-      section: "followUps",
-      continuation: page > 0,
-      heading: page === 0 ? ft.heading : ft.headingCont,
-      headers: [...ft.headers],
-      rows,
-      colPct: followColPct,
-    });
-  });
-
-  // 4. Priority Items (fit-to-slide prose, paginated past the per-slide capacity)
-  const priorityItems = content.priorityItems.map((p) => ({ number: p.number, title: p.title, body: p.explanation }));
-  chunkRows(priorityItems, proseCapacity(R.priorities)).forEach((items, page) => {
-    const fonts = fitProseFonts(items.length, R.priorities);
-    slides.push({
-      kind: "prose",
-      section: "priorities",
-      continuation: page > 0,
-      heading: page === 0 ? R.priorities.heading : R.priorities.headingCont,
-      titleFontPt: fonts.titleFontPt,
-      bodyFontPt: fonts.bodyFontPt,
-      items,
-    });
-  });
-
-  // 5. Dashboard (paginated 3-column tables)
-  const d = R.dashboard;
-  const groups = [
-    { title: d.groupTitles.healthAndSafety, rows: content.dashboard.healthAndSafety },
-    { title: d.groupTitles.operational, rows: content.dashboard.operational },
-    { title: d.groupTitles.financial, rows: content.dashboard.financial },
-    ...(content.dashboard.customGroups ?? []),
-  ].map((g) => ({
-    title: g.title,
-    rows: g.rows.length ? g.rows : [{ label: d.emptyRow.label, value: confirm }],
-  }));
-  const dashAvail = T.safeArea.contentBottom - d.tableY;
-  const dashPerSlide = Math.max(1, Math.floor(dashAvail / d.rowH));
-  chunkRows(groups, 3).forEach((groupSet, groupPage) => {
-    const maxRows = Math.max(...groupSet.map((g) => g.rows.length));
-    const dashPages = Math.max(1, Math.ceil(maxRows / dashPerSlide));
-    for (let page = 0; page < dashPages; page++) {
-      const start = page * dashPerSlide;
-      const continuation = groupPage > 0 || page > 0;
+  // Per-section builders — assembled below in the layout-resolved order.
+  const build: Record<SlideSection, () => void> = {
+    title: () => {
       slides.push({
-        kind: "dashboard",
-        section: "dashboard",
-        continuation,
-        heading: continuation ? d.headingCont : d.heading,
-        columns: groupSet.map((g) => ({ title: g.title, rows: g.rows.slice(start, start + dashPerSlide) })),
+        kind: "title",
+        section: "title",
+        continuation: false,
+        clientName: content.title.clientName,
+        quarterYear: content.title.quarterYear,
+        headingText: R.title.heading.text,
+        meetingMonthYear: content.title.meetingMonthYear,
       });
+    },
+    // Agenda (paginated — overflow items flow onto continuation slides)
+    agenda: () => {
+      const a = R.agenda;
+      const agendaItems = (content.agenda.length > 0 ? content.agenda : [...a.fallbackItems]).map(
+        (label, i) => ({ number: i + a.startNumber, label }),
+      );
+      const agendaPerSlide = agendaCapacity(a);
+      chunkRows(agendaItems, agendaPerSlide).forEach((items, page) => {
+        slides.push({
+          kind: "agenda",
+          section: "agenda",
+          continuation: page > 0,
+          heading: page === 0 ? a.heading : a.headingCont,
+          items,
+        });
+      });
+    },
+    // Open Follow-Ups & Progress (paginated table)
+    followUps: () => {
+      const ft = R.followUpsTable;
+      const followRows: string[][] =
+        content.followUps.length === 0
+          ? [[...ft.emptyRow, confirm, confirm, confirm]]
+          : content.followUps.map((f) => [String(f.number), f.action, f.status, f.owner, f.dueDate]);
+      const followAvail = T.safeArea.contentBottom - ft.y;
+      const followPerSlide = Math.max(1, Math.floor(followAvail / ft.rowH) - 1);
+      const colTotal = ft.colW.reduce((a, b) => a + b, 0);
+      const followColPct = ft.colW.map((c) => (c / colTotal) * 100);
+      chunkRows(followRows, followPerSlide).forEach((rows, page) => {
+        slides.push({
+          kind: "table",
+          section: "followUps",
+          continuation: page > 0,
+          heading: page === 0 ? ft.heading : ft.headingCont,
+          headers: [...ft.headers],
+          rows,
+          colPct: followColPct,
+        });
+      });
+    },
+    // Priority Items (fit-to-slide prose, paginated past the per-slide capacity)
+    priorities: () => {
+      const priorityItems = content.priorityItems.map((p) => ({ number: p.number, title: p.title, body: p.explanation }));
+      chunkRows(priorityItems, proseCapacity(R.priorities)).forEach((items, page) => {
+        const fonts = fitProseFonts(items.length, R.priorities);
+        slides.push({
+          kind: "prose",
+          section: "priorities",
+          continuation: page > 0,
+          heading: page === 0 ? R.priorities.heading : R.priorities.headingCont,
+          titleFontPt: fonts.titleFontPt,
+          bodyFontPt: fonts.bodyFontPt,
+          items,
+        });
+      });
+    },
+    // Dashboard (paginated 3-column tables; hidden groups are skipped)
+    dashboard: () => {
+      const d = R.dashboard;
+      const hiddenGroups = new Set(
+        (content.dashboard.hiddenGroups ?? []).map((g) => g.trim().toLowerCase()),
+      );
+      const isHidden = (...names: string[]) =>
+        names.some((n) => hiddenGroups.has(n.trim().toLowerCase()));
+      const groups = [
+        {
+          title: d.groupTitles.healthAndSafety,
+          rows: content.dashboard.healthAndSafety,
+          hidden: isHidden("Health & Safety", d.groupTitles.healthAndSafety),
+        },
+        {
+          title: d.groupTitles.operational,
+          rows: content.dashboard.operational,
+          hidden: isHidden("Operational", d.groupTitles.operational),
+        },
+        {
+          title: d.groupTitles.financial,
+          rows: content.dashboard.financial,
+          hidden: isHidden("Financial", d.groupTitles.financial),
+        },
+        ...(content.dashboard.customGroups ?? []).map((g) => ({
+          title: g.title,
+          rows: g.rows,
+          hidden: isHidden(g.title),
+        })),
+      ]
+        .filter((g) => !g.hidden)
+        .map((g) => ({
+          title: g.title,
+          rows: g.rows.length ? g.rows : [{ label: d.emptyRow.label, value: confirm }],
+        }));
+      if (groups.length === 0) {
+        groups.push({ title: d.groupTitles.operational, rows: [{ label: d.emptyRow.label, value: confirm }] });
+      }
+      const dashAvail = T.safeArea.contentBottom - d.tableY;
+      const dashPerSlide = Math.max(1, Math.floor(dashAvail / d.rowH));
+      chunkRows(groups, 3).forEach((groupSet, groupPage) => {
+        const maxRows = Math.max(...groupSet.map((g) => g.rows.length));
+        const dashPages = Math.max(1, Math.ceil(maxRows / dashPerSlide));
+        for (let page = 0; page < dashPages; page++) {
+          const start = page * dashPerSlide;
+          const continuation = groupPage > 0 || page > 0;
+          slides.push({
+            kind: "dashboard",
+            section: "dashboard",
+            continuation,
+            heading: continuation ? d.headingCont : d.heading,
+            columns: groupSet.map((g) => ({ title: g.title, rows: g.rows.slice(start, start + dashPerSlide) })),
+          });
+        }
+      });
+    },
+    // What's Next (fit-to-slide prose, paginated past the per-slide capacity)
+    whatsNext: () => {
+      const whatsNextItems = content.whatsNext.map((u) => ({ number: u.number, title: u.title, body: u.detail }));
+      chunkRows(whatsNextItems, proseCapacity(R.whatsNext)).forEach((items, page) => {
+        const fonts = fitProseFonts(items.length, R.whatsNext);
+        slides.push({
+          kind: "prose",
+          section: "whatsNext",
+          continuation: page > 0,
+          heading: page === 0 ? R.whatsNext.heading : R.whatsNext.headingCont,
+          titleFontPt: fonts.titleFontPt,
+          bodyFontPt: fonts.bodyFontPt,
+          items,
+        });
+      });
+    },
+    questions: () => {
+      slides.push({
+        kind: "questions",
+        section: "questions",
+        continuation: false,
+        headingText: R.questions.headingText,
+        thanksText: R.questions.thanksText,
+      });
+    },
+  };
+
+  /** Custom slide: prose (What's Next geometry) or generic table (follow-ups geometry). */
+  const buildCustom = (custom: CustomSlide, anchorSection: SlideSection) => {
+    if (custom.kind === "table") {
+      const ft = R.followUpsTable;
+      const { headers, rows } = parseCustomTable(custom.body);
+      const avail = T.safeArea.contentBottom - ft.y;
+      const perSlide = Math.max(1, Math.floor(avail / ft.rowH) - 1);
+      const colPct = headers.map(() => 100 / headers.length);
+      chunkRows(rows, perSlide).forEach((pageRows, page) => {
+        slides.push({
+          kind: "table",
+          section: anchorSection,
+          customId: custom.id,
+          continuation: page > 0,
+          heading: page === 0 ? custom.title : customContHeading(custom.title, locale),
+          headers,
+          rows: pageRows,
+          colPct,
+        });
+      });
+      return;
     }
-  });
-
-  // 6. What's Next (fit-to-slide prose, paginated past the per-slide capacity)
-  const whatsNextItems = content.whatsNext.map((u) => ({ number: u.number, title: u.title, body: u.detail }));
-  chunkRows(whatsNextItems, proseCapacity(R.whatsNext)).forEach((items, page) => {
-    const fonts = fitProseFonts(items.length, R.whatsNext);
-    slides.push({
-      kind: "prose",
-      section: "whatsNext",
-      continuation: page > 0,
-      heading: page === 0 ? R.whatsNext.heading : R.whatsNext.headingCont,
-      titleFontPt: fonts.titleFontPt,
-      bodyFontPt: fonts.bodyFontPt,
-      items,
+    const items = parseCustomProse(custom.body);
+    chunkRows(items, proseCapacity(R.whatsNext)).forEach((pageItems, page) => {
+      const fonts = fitProseFonts(pageItems.length, R.whatsNext);
+      slides.push({
+        kind: "prose",
+        section: anchorSection,
+        customId: custom.id,
+        continuation: page > 0,
+        heading: page === 0 ? custom.title : customContHeading(custom.title, locale),
+        titleFontPt: fonts.titleFontPt,
+        bodyFontPt: fonts.bodyFontPt,
+        items: pageItems,
+      });
     });
-  });
+  };
 
-  // 7. Questions & Discussion
-  slides.push({
-    kind: "questions",
-    section: "questions",
-    continuation: false,
-    headingText: R.questions.headingText,
-    thanksText: R.questions.thanksText,
-  });
+  for (const entry of resolveDeckSequence(content)) {
+    if (entry.type === "section") build[entry.section]();
+    else buildCustom(entry.slide, entry.anchorSection);
+  }
 
   // Assign 1-based indices + per-slide overlays (mirrors applyDeckOverlays).
   const showNumbers = !!options.pageNumbers;
@@ -296,6 +477,13 @@ const OP_SECTION: Record<string, SlideSection> = {
   set_agenda: "agenda",
   set_meeting_date: "title",
   set_next_meeting_date: "title",
+  add_slide: "agenda",
+  edit_slide: "agenda",
+  remove_slide: "agenda",
+  move_slide: "agenda",
+  set_section_hidden: "agenda",
+  add_dashboard_group: "dashboard",
+  remove_dashboard_group: "dashboard",
 };
 
 /**

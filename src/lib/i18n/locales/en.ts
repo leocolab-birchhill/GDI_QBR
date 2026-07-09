@@ -174,12 +174,12 @@ export const en = {
       canItems: [
         "Update dashboard metrics, priorities, what's next, and follow-ups",
         "Add or remove items, reword text, change follow-up status",
+        "Hide built-in slides, add custom slides, and hide dashboard sections",
         "Set meeting dates (this QBR and next)",
         "Toggle page numbers, footer text, and a title tag",
       ],
       cantItems: [
         "Change fonts, colors, logos, or slide layout",
-        "Add, delete, or reorder slides outside the standard structure",
         "Upload a custom .pptx",
         "Invent metric numbers — provide a value or it stays \"To confirm\"",
       ],

@@ -89,4 +89,21 @@ describe("deterministic slide-edit parser", () => {
     const r = parseSlideEditFallback("hello", ctx());
     expect(r.suggestions.some((s) => s.includes("Average inspection score"))).toBe(true);
   });
+
+  it("parses add-slide requests", () => {
+    const r = parseSlideEditFallback("add a slide titled Site notes", ctx());
+    expect(r.operations[0]).toMatchObject({
+      type: "add_slide",
+      title: "Site notes",
+      kind: "prose",
+      afterSection: "whatsNext",
+    });
+    expect(r.regenerate).toBe(true);
+  });
+
+  it("parses hide-dashboard-group requests", () => {
+    const r = parseSlideEditFallback("hide the Financial dashboard section", ctx());
+    expect(r.operations[0]).toMatchObject({ type: "remove_dashboard_group", group: "Financial" });
+    expect(r.regenerate).toBe(true);
+  });
 });

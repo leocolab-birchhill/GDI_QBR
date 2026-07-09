@@ -14,6 +14,7 @@ import {
   type GuidedSection,
   type Locale,
 } from "@/lib/i18n";
+import { getSectionGuidance, sectionChatPlaceholder } from "@/lib/qbr/sectionGuidance";
 import DeckPreview from "./DeckPreview";
 import DeckLanguageToggle from "./DeckLanguageToggle";
 
@@ -26,10 +27,26 @@ interface ChatMessage {
   id?: string;
   role: "user" | "assistant";
   text: string;
+  section?: string;
   actorName?: string;
   applied?: string[];
   deck?: DeckRef | null;
   suggestions?: string[];
+}
+
+type ThreadScope = "section" | "all";
+type RailKey = GuidedSection | `custom:${string}`;
+
+function railKeyForSection(section: GuidedSection): RailKey {
+  return section;
+}
+
+function railKeyForCustom(id: string): RailKey {
+  return `custom:${id}`;
+}
+
+function isCustomRailKey(key: RailKey): key is `custom:${string}` {
+  return key.startsWith("custom:");
 }
 
 function EditorCapabilities({ locale }: { locale: Locale }) {
@@ -959,9 +976,13 @@ function SlideEditorPanel({
   content,
   clientName,
   formResult,
+  activeRailKey,
+  formCardCollapsed,
+  onToggleFormCard,
   onSave,
   onComplete,
   onReopen,
+  onSuggestionClick,
 }: {
   progress: EditorProgress;
   locale: Locale;
@@ -970,19 +991,33 @@ function SlideEditorPanel({
   content: SlideContent | null;
   clientName: string;
   formResult: string | null;
+  activeRailKey: RailKey;
+  formCardCollapsed: boolean;
+  onToggleFormCard: () => void;
   onSave: (ops: SlideEditOp[]) => void;
   onComplete: () => void;
   onReopen: () => void;
+  onSuggestionClick: (text: string) => void;
 }) {
   const s = getStrings(locale);
   const section = progress.currentSection;
+  const isCustom = isCustomRailKey(activeRailKey);
+  const customSlide = isCustom
+    ? content?.customSlides?.find((c) => c.id === activeRailKey.slice(7))
+    : undefined;
+  const guidance = getSectionGuidance(section, content, progress, locale);
   const sectionIndex = GUIDED_SECTIONS.indexOf(section) + 1;
   const totalSlides = GUIDED_SECTIONS.length;
   const status = getSlideStatus(section, progress);
   const confirmed = status === "complete";
   const [hasUnsaved, setHasUnsaved] = useState(false);
   const [resetToken, setResetToken] = useState(0);
+  const [customBody, setCustomBody] = useState(customSlide?.body ?? "");
   const collectOpsRef = useRef<() => SlideEditOp[]>(() => []);
+
+  useEffect(() => {
+    setCustomBody(customSlide?.body ?? "");
+  }, [customSlide?.id, customSlide?.body]);
 
   const registerCollector = useCallback((fn: () => SlideEditOp[]) => {
     collectOpsRef.current = fn;
@@ -990,7 +1025,7 @@ function SlideEditorPanel({
 
   useEffect(() => {
     setHasUnsaved(false);
-  }, [section]);
+  }, [section, activeRailKey]);
 
   const statusLabel =
     status === "complete"
@@ -1006,130 +1041,274 @@ function SlideEditorPanel({
         ? "bg-primary/10 text-primary"
         : "bg-amber-100 text-amber-800";
 
+  const displayGuidance = isCustom
+    ? {
+        intro: `**${customSlide?.title ?? "Custom slide"}**\n\n${locale === "fr" ? "Diapositive personnalisée. Modifiez le contenu ci-dessous ou décrivez les changements dans le clavardage." : "Custom slide. Edit the content below or describe changes in chat."}`,
+        missingFields: [] as string[],
+        suggestions: [
+          locale === "fr" ? "Raccourcir le texte de cette diapositive" : "Make this slide shorter",
+          locale === "fr" ? "Déplacer cette diapositive après le tableau de bord" : "Move this slide after the dashboard",
+        ],
+      }
+    : guidance;
+
   return (
-    <div className="mt-4 space-y-4">
-      <div>
-        <p className="text-xs text-muted-foreground">{s.editor.editingSlide(sectionIndex, totalSlides)}</p>
-        <h2 className="mt-0.5 text-base font-semibold text-foreground">{s.editor.slideTitles[section]}</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Status:{" "}
-          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusClass}`}>
-            {statusLabel}
-          </span>
-        </p>
-      </div>
-
-      <div className="rounded-lg border-2 border-border bg-card p-4 shadow-sm">
-        <div className="mb-4">
-          <h3 className="text-sm font-semibold text-foreground">{s.editor.formTitles[section]}</h3>
-          <p className="mt-1 text-xs text-muted-foreground">{s.editor.formHelpers[section]}</p>
-          {hasUnsaved && (
-            <p className="mt-2 text-[11px] font-medium text-amber-700">{s.editor.unsavedChanges}</p>
-          )}
-        </div>
-
-        <SlideFormContent
-          section={section}
-          locale={locale}
-          content={content}
-          clientName={clientName}
-          resetToken={resetToken}
-          onDirtyChange={setHasUnsaved}
-          registerCollector={registerCollector}
-        />
-
-        {formResult && (
-          <p className="mt-3 text-xs text-muted-foreground">{formResult}</p>
+    <div className="space-y-3">
+      <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-3">
+        <p className="whitespace-pre-wrap text-xs text-foreground">{displayGuidance.intro}</p>
+        {displayGuidance.missingFields.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {displayGuidance.missingFields.map((field) => (
+              <button
+                key={field}
+                type="button"
+                onClick={() => onSuggestionClick(field)}
+                className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-900 hover:bg-amber-100"
+              >
+                {field}
+              </button>
+            ))}
+          </div>
         )}
-
-        <div className="mt-5 flex flex-wrap items-center gap-2 border-t pt-4">
-          <button
-            type="button"
-            disabled={busy || !hasUnsaved}
-            onClick={() => onSave(collectOpsRef.current())}
-            className="rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
-          >
-            {s.editor.saveSlideChanges}
-          </button>
-          {confirmed ? (
-            <button
-              type="button"
-              onClick={onReopen}
-              disabled={sectionBusy || busy}
-              className="rounded-md border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-50"
-            >
-              {s.editor.reopenSlideEditing}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onComplete}
-              disabled={busy || hasUnsaved}
-              className="rounded-md border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-50"
-            >
-              {s.editor.markSlideComplete}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => {
-              setResetToken((t) => t + 1);
-              setHasUnsaved(false);
-            }}
-            disabled={!hasUnsaved}
-            className="text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-40"
-          >
-            {s.editor.resetChanges}
-          </button>
-        </div>
+        {displayGuidance.suggestions.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {displayGuidance.suggestions.slice(0, 3).map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => onSuggestionClick(chip)}
+                className="rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary/40 hover:text-foreground"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      <button
+        type="button"
+        onClick={onToggleFormCard}
+        className="flex w-full items-center justify-between rounded-md border bg-card px-3 py-2 text-left text-xs font-medium hover:bg-accent/50"
+      >
+        <span>
+          {isCustom
+            ? customSlide?.title ?? (locale === "fr" ? "Diapositive personnalisée" : "Custom slide")
+            : s.editor.formTitles[section]}
+        </span>
+        <span className="text-muted-foreground">{formCardCollapsed ? "+" : "−"}</span>
+      </button>
+
+      {!formCardCollapsed && (
+        <div className="rounded-lg border-2 border-border bg-card p-4 shadow-sm">
+          {!isCustom && (
+            <>
+              <div className="mb-4">
+                <p className="text-xs text-muted-foreground">{s.editor.editingSlide(sectionIndex, totalSlides)}</p>
+                <h3 className="mt-0.5 text-sm font-semibold text-foreground">{s.editor.slideTitles[section]}</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Status:{" "}
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusClass}`}>
+                    {statusLabel}
+                  </span>
+                </p>
+                {hasUnsaved && (
+                  <p className="mt-2 text-[11px] font-medium text-amber-700">{s.editor.unsavedChanges}</p>
+                )}
+              </div>
+              <SlideFormContent
+                section={section}
+                locale={locale}
+                content={content}
+                clientName={clientName}
+                resetToken={resetToken}
+                onDirtyChange={setHasUnsaved}
+                registerCollector={registerCollector}
+              />
+            </>
+          )}
+          {isCustom && customSlide && (
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                {locale === "fr" ? "Type" : "Kind"}: {customSlide.kind}
+              </p>
+              <label className="grid gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {locale === "fr" ? "Contenu" : "Content"}
+                <textarea
+                  className="min-h-28 resize-y rounded-md border bg-background px-2 py-1.5 text-xs normal-case tracking-normal text-foreground"
+                  value={customBody}
+                  onChange={(e) => {
+                    setCustomBody(e.target.value);
+                    setHasUnsaved(e.target.value !== (customSlide.body ?? ""));
+                  }}
+                  placeholder={
+                    customSlide.kind === "table"
+                      ? "Header A | Header B\nRow 1 col 1 | Row 1 col 2"
+                      : "Item title: detail\nAnother item"
+                  }
+                />
+              </label>
+            </div>
+          )}
+
+          {formResult && <p className="mt-3 text-xs text-muted-foreground">{formResult}</p>}
+
+          <div className="mt-5 flex flex-wrap items-center gap-2 border-t pt-4">
+            <button
+              type="button"
+              disabled={busy || !hasUnsaved}
+              onClick={() => {
+                if (isCustom && customSlide) {
+                  onSave([
+                    {
+                      type: "edit_slide",
+                      slideId: customSlide.id,
+                      body: customBody,
+                    },
+                  ]);
+                  setHasUnsaved(false);
+                } else {
+                  onSave(collectOpsRef.current());
+                }
+              }}
+              className="rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
+            >
+              {s.editor.saveSlideChanges}
+            </button>
+            {!isCustom && (
+              <>
+                {confirmed ? (
+                  <button
+                    type="button"
+                    onClick={onReopen}
+                    disabled={sectionBusy || busy}
+                    className="rounded-md border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-50"
+                  >
+                    {s.editor.reopenSlideEditing}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onComplete}
+                    disabled={busy || hasUnsaved}
+                    className="rounded-md border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-50"
+                  >
+                    {s.editor.markSlideComplete}
+                  </button>
+                )}
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setResetToken((t) => t + 1);
+                setCustomBody(customSlide?.body ?? "");
+                setHasUnsaved(false);
+              }}
+              disabled={!hasUnsaved}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-40"
+            >
+              {s.editor.resetChanges}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function SlideMap({
+function SlideRail({
   progress,
   locale,
+  content,
+  activeRailKey,
   onSelect,
+  onHideSection,
+  onAddSlide,
   disabled,
 }: {
   progress: EditorProgress;
   locale: Locale;
-  onSelect: (section: GuidedSection) => void;
+  content: SlideContent | null;
+  activeRailKey: RailKey;
+  onSelect: (key: RailKey) => void;
+  onHideSection: (section: GuidedSection) => void;
+  onAddSlide: () => void;
   disabled?: boolean;
 }) {
   const s = getStrings(locale);
+  const hidden = new Set(content?.hiddenSections ?? []);
+
   return (
-    <div className="mt-3 flex flex-wrap gap-1.5">
+    <div className="mt-3 flex flex-wrap items-center gap-1.5">
       {GUIDED_SECTIONS.map((section, index) => {
+        if (hidden.has(section)) return null;
+        const key = railKeyForSection(section);
         const confirmed = progress.confirmedSections.includes(section);
-        const current = progress.currentSection === section;
+        const current = activeRailKey === key;
         return (
-          <button
-            key={section}
-            type="button"
-            disabled={disabled}
-            onClick={() => onSelect(section)}
-            title={locale === "fr" ? "Revenir a cette diapositive" : "Jump to this slide"}
-            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors hover:ring-1 hover:ring-primary/40 disabled:opacity-50 ${
-              current
-                ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
-                : confirmed
-                  ? "border-gdi-green/30 bg-gdi-green/15 text-gdi-green hover:bg-gdi-green/25"
-                  : "border-border bg-muted text-muted-foreground hover:bg-muted/70"
-            }`}
-          >
-            <span
-              className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${
-                confirmed ? "bg-gdi-green text-white" : current ? "bg-primary text-primary-foreground" : "bg-background"
+          <div key={section} className="group relative inline-flex">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onSelect(key)}
+              title={locale === "fr" ? "Aller à cette diapositive" : "Jump to this slide"}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors hover:ring-1 hover:ring-primary/40 disabled:opacity-50 ${
+                current
+                  ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
+                  : confirmed
+                    ? "border-gdi-green/30 bg-gdi-green/15 text-gdi-green hover:bg-gdi-green/25"
+                    : "border-border bg-muted text-muted-foreground hover:bg-muted/70"
               }`}
             >
-              {confirmed ? "✓" : index + 1}
-            </span>
-            {s.editor.sections[section]}
+              <span
+                className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${
+                  confirmed ? "bg-gdi-green text-white" : current ? "bg-primary text-primary-foreground" : "bg-background"
+                }`}
+              >
+                {confirmed ? "✓" : index + 1}
+              </span>
+              {s.editor.sections[section]}
+            </button>
+            {section !== "title" && (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onHideSection(section)}
+                className="ml-0.5 hidden rounded px-1 text-[10px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:inline"
+                title={locale === "fr" ? "Masquer cette diapositive" : "Hide this slide"}
+              >
+                ⋯
+              </button>
+            )}
+          </div>
+        );
+      })}
+      {(content?.customSlides ?? []).map((slide) => {
+        const key = railKeyForCustom(slide.id);
+        const current = activeRailKey === key;
+        return (
+          <button
+            key={slide.id}
+            type="button"
+            disabled={disabled}
+            onClick={() => onSelect(key)}
+            className={`inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-[10px] font-medium ${
+              current ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/70"
+            }`}
+          >
+            + {slide.title}
           </button>
         );
       })}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onAddSlide}
+        className="inline-flex items-center rounded-full border border-dashed px-2.5 py-1 text-[10px] font-medium text-primary hover:bg-primary/5 disabled:opacity-50"
+      >
+        {locale === "fr" ? "+ Ajouter" : "+ Add slide"}
+      </button>
     </div>
   );
 }
@@ -1175,7 +1354,11 @@ export default function CollaborateChat({
   const [latestDeck, setLatestDeck] = useState<DeckRef | null>(initialDeck);
   const [editorProgress, setEditorProgress] = useState<EditorProgress>(initialProgress);
   const [formResult, setFormResult] = useState<string | null>(null);
-  const [chatHistoryOpen, setChatHistoryOpen] = useState(false);
+  const [threadScope, setThreadScope] = useState<ThreadScope>("section");
+  const [formCardCollapsed, setFormCardCollapsed] = useState(false);
+  const [activeRailKey, setActiveRailKey] = useState<RailKey>(
+    railKeyForSection(initialProgress.currentSection),
+  );
 
   const [clientName, setClientName] = useState(initialClientName);
   const [editingName, setEditingName] = useState(false);
@@ -1190,8 +1373,18 @@ export default function CollaborateChat({
   const [scrollToken, setScrollToken] = useState(0);
 
   const endRef = useRef<HTMLDivElement>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastPollRef = useRef<string>(new Date().toISOString());
+
+  const activeThreadSection = isCustomRailKey(activeRailKey)
+    ? activeRailKey
+    : editorProgress.currentSection;
+
+  const visibleMessages = useMemo(() => {
+    if (threadScope === "all") return messages;
+    return messages.filter((m) => m.section === activeThreadSection);
+  }, [messages, threadScope, activeThreadSection]);
 
   const slides = useMemo(() => {
     if (!content) return [];
@@ -1200,8 +1393,8 @@ export default function CollaborateChat({
   }, [content, deckOptions, deckLocale]);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, busy]);
+    threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
+  }, [visibleMessages, busy, activeThreadSection, threadScope]);
 
   const pollMessages = useCallback(async () => {
     try {
@@ -1212,7 +1405,7 @@ export default function CollaborateChat({
           const ids = new Set(prev.map((m) => m.id).filter(Boolean));
           const incoming = data.messages
             .filter((m: { id: string }) => !ids.has(m.id))
-            .map((m: { id: string; role: string; text: string; actorName?: string; metadataJson?: string }) => {
+            .map((m: { id: string; role: string; text: string; section?: string; actorName?: string; metadataJson?: string }) => {
               let meta: Record<string, unknown> = {};
               if (m.metadataJson) {
                 try {
@@ -1225,6 +1418,7 @@ export default function CollaborateChat({
                 id: m.id,
                 role: m.role as "user" | "assistant",
                 text: m.text,
+                section: m.section ?? undefined,
                 actorName: m.actorName ?? undefined,
                 applied: meta.applied as string[] | undefined,
                 deck: meta.deck as DeckRef | undefined,
@@ -1247,12 +1441,23 @@ export default function CollaborateChat({
     return () => clearInterval(interval);
   }, [pollMessages]);
 
+  async function selectRail(key: RailKey) {
+    setActiveRailKey(key);
+    if (isCustomRailKey(key)) {
+      setHighlightSection(editorProgress.currentSection as SlideSection);
+      setScrollToken((t) => t + 1);
+      return;
+    }
+    await selectSection(key);
+  }
+
   async function selectSection(section: GuidedSection, completed?: boolean) {
     if (sectionBusy) return;
     setSectionBusy(true);
     // Optimistically move the highlight + scroll the preview to that slide.
     setHighlightSection(section as SlideSection);
     setScrollToken((t) => t + 1);
+    setActiveRailKey(railKeyForSection(section));
     try {
       const res = await fetch(`/api/qbr/${qbrId}/section`, {
         method: "PATCH",
@@ -1268,6 +1473,7 @@ export default function CollaborateChat({
           setEditorProgress(data.editorProgress);
           if (!data.content) {
             setHighlightSection(data.editorProgress.currentSection);
+            setActiveRailKey(railKeyForSection(data.editorProgress.currentSection));
             setScrollToken((t) => t + 1);
           }
         }
@@ -1333,11 +1539,38 @@ export default function CollaborateChat({
     }
   }
 
+  async function hideSection(section: GuidedSection) {
+    await submitOperations([{ type: "set_section_hidden", section, hidden: true }]);
+  }
+
+  function promptAddSlide() {
+    const title = window.prompt(
+      uiLocale === "fr" ? "Titre de la nouvelle diapositive :" : "New slide title:",
+    );
+    if (!title?.trim()) return;
+    const after = isCustomRailKey(activeRailKey)
+      ? editorProgress.currentSection
+      : (activeRailKey as GuidedSection);
+    void submitOperations([
+      {
+        type: "add_slide",
+        title: title.trim(),
+        kind: "prose",
+        body: "",
+        afterSection: after,
+      },
+    ]);
+  }
+
+  function activeSectionParam(): string {
+    return isCustomRailKey(activeRailKey) ? activeRailKey : editorProgress.currentSection;
+  }
+
   async function send(text: string, confirmSection?: string) {
     const messageText = text.trim();
     if (!messageText || busy) return;
     setInput("");
-    setMessages((m) => [...m, { role: "user", text: messageText }]);
+    setMessages((m) => [...m, { role: "user", text: messageText, section: activeSectionParam() }]);
     setBusy(true);
     try {
       const res = await fetch(`/api/qbr/${qbrId}/collaborate`, {
@@ -1346,6 +1579,7 @@ export default function CollaborateChat({
         body: JSON.stringify({
           message: messageText,
           confirmSection,
+          activeSection: activeSectionParam(),
         }),
       });
       const data = await res.json();
@@ -1373,6 +1607,7 @@ export default function CollaborateChat({
             id: data.messageId,
             role: "assistant",
             text: data.reply,
+            section: activeSectionParam(),
             applied: data.applied,
             deck: data.deck,
             suggestions: data.suggestions,
@@ -1399,7 +1634,7 @@ export default function CollaborateChat({
       const res = await fetch(`/api/qbr/${qbrId}/collaborate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ operations }),
+        body: JSON.stringify({ operations, activeSection: activeSectionParam() }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -1521,127 +1756,181 @@ export default function CollaborateChat({
             </div>
           </div>
           {editorProgress.guidedMode && (
-            <SlideMap
+            <SlideRail
               progress={editorProgress}
               locale={uiLocale}
-              onSelect={selectSection}
+              content={content}
+              activeRailKey={activeRailKey}
+              onSelect={selectRail}
+              onHideSection={hideSection}
+              onAddSlide={promptAddSlide}
               disabled={sectionBusy}
             />
           )}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mb-3 mt-2 lg:hidden">
-            <DeckLanguageToggle
-              deckLocale={deckLocale}
-              uiLocale={uiLocale}
-              busy={deckBusy}
-              onChange={changeDeckLanguage}
-            />
-          </div>
-
-          {!aiEnabled && (
-            <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              <strong>{uiLocale === "fr" ? "Mode édition de base." : "Basic editing mode."}</strong>{" "}
-              {s.editor.basicMode}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-0.5">
+            <div className="mb-3 mt-2 lg:hidden">
+              <DeckLanguageToggle
+                deckLocale={deckLocale}
+                uiLocale={uiLocale}
+                busy={deckBusy}
+                onChange={changeDeckLanguage}
+              />
             </div>
-          )}
 
-          {editorProgress.guidedMode && (
-            <SlideEditorPanel
-              progress={editorProgress}
-              locale={uiLocale}
-              busy={busy || formBusy}
-              sectionBusy={sectionBusy}
-              content={content}
-              clientName={clientName}
-              formResult={formResult}
-              onSave={submitOperations}
-              onComplete={confirmCurrentSection}
-              onReopen={reopenCurrentSection}
-            />
-          )}
-
-          <div className="mt-6 rounded-md border border-dashed bg-muted/10 p-3">
-            <h3 className="text-xs font-medium text-muted-foreground">{s.editor.askAssistant}</h3>
-            <p className="mt-1 text-[11px] text-muted-foreground">{s.editor.askAssistantHelper}</p>
-
-            {messages.length > 0 && (
-              <div className="mt-3">
-                <button
-                  type="button"
-                  onClick={() => setChatHistoryOpen((v) => !v)}
-                  className="text-[11px] font-medium text-muted-foreground hover:text-foreground"
-                >
-                  {s.editor.chatHistory} ({messages.length}) {chatHistoryOpen ? "−" : "+"}
-                </button>
-                {chatHistoryOpen && (
-                  <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded-md border bg-background/50 p-2">
-                    {messages.map((m, i) => (
-                      <div
-                        key={m.id ?? i}
-                        className={`rounded-lg px-2.5 py-2 text-[11px] ${
-                          m.role === "user"
-                            ? "ml-4 bg-primary/10 text-foreground"
-                            : "mr-4 border bg-muted/30 text-muted-foreground"
-                        }`}
-                      >
-                        {m.actorName && m.role === "user" && (
-                          <p className="mb-0.5 text-[9px] font-semibold opacity-70">{m.actorName}</p>
-                        )}
-                        <p className="whitespace-pre-wrap">{m.text}</p>
-                        {m.applied && m.applied.length > 0 && (
-                          <ul className="mt-1 space-y-0.5 text-[10px] opacity-80">
-                            {m.applied.map((a, j) => (
-                              <li key={j}>✓ {a}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    ))}
-                    {busy && (
-                      <div className="rounded-lg border bg-muted/30 px-2.5 py-2 text-[11px] text-muted-foreground">
-                        {s.editor.revising}
-                      </div>
-                    )}
-                    <div ref={endRef} />
-                  </div>
-                )}
+            {!aiEnabled && (
+              <div className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <strong>{uiLocale === "fr" ? "Mode édition de base." : "Basic editing mode."}</strong>{" "}
+                {s.editor.basicMode}
               </div>
             )}
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                send(input);
-              }}
-              className="mt-3 flex items-end gap-2"
-            >
-              <textarea
-                ref={inputRef}
-                className="h-10 max-h-32 flex-1 resize-none rounded-md border px-3 py-2 text-xs"
-                placeholder={s.editor.slideChatPlaceholder}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    send(input);
-                  }
-                }}
-                disabled={busy}
-              />
-              <button
-                type="submit"
-                disabled={busy || !input.trim()}
-                className="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-xs font-medium text-foreground hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
-              >
-                {s.editor.send}
-              </button>
-            </form>
-          </div>
+            {editorProgress.guidedMode && (
+              <div className="mt-3">
+                <SlideEditorPanel
+                  progress={editorProgress}
+                  locale={uiLocale}
+                  busy={busy || formBusy}
+                  sectionBusy={sectionBusy}
+                  content={content}
+                  clientName={clientName}
+                  formResult={formResult}
+                  activeRailKey={activeRailKey}
+                  formCardCollapsed={formCardCollapsed}
+                  onToggleFormCard={() => setFormCardCollapsed((v) => !v)}
+                  onSave={submitOperations}
+                  onComplete={confirmCurrentSection}
+                  onReopen={reopenCurrentSection}
+                  onSuggestionClick={(text) => {
+                    setInput(text);
+                    inputRef.current?.focus();
+                  }}
+                />
+              </div>
+            )}
 
-          <EditorCapabilities locale={uiLocale} />
+            <div className="mt-4 flex min-h-[200px] flex-1 flex-col rounded-md border bg-muted/10">
+              <div className="flex items-center justify-between border-b px-3 py-2">
+                <h3 className="text-xs font-medium text-foreground">{s.editor.askAssistant}</h3>
+                <div className="flex gap-1 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setThreadScope("section")}
+                    className={`rounded-full px-2 py-0.5 font-medium ${
+                      threadScope === "section" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {uiLocale === "fr" ? "Cette diapo" : "This slide"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setThreadScope("all")}
+                    className={`rounded-full px-2 py-0.5 font-medium ${
+                      threadScope === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {uiLocale === "fr" ? "Tout" : "All"}
+                  </button>
+                </div>
+              </div>
+
+              <div ref={threadRef} className="min-h-[120px] flex-1 space-y-2 overflow-y-auto p-3">
+                {visibleMessages.length === 0 && (
+                  <p className="text-center text-[11px] text-muted-foreground">
+                    {uiLocale === "fr"
+                      ? "Aucun message pour cette diapositive — décrivez une modification ci-dessous."
+                      : "No messages for this slide yet — describe a change below."}
+                  </p>
+                )}
+                {visibleMessages.map((m, i) => (
+                  <div key={m.id ?? i}>
+                    <div
+                      className={`rounded-lg px-2.5 py-2 text-[11px] ${
+                        m.role === "user"
+                          ? "ml-6 bg-primary/10 text-foreground"
+                          : "mr-6 border bg-background text-foreground"
+                      }`}
+                    >
+                      {m.actorName && m.role === "user" && (
+                        <p className="mb-0.5 text-[9px] font-semibold opacity-70">{m.actorName}</p>
+                      )}
+                      <p className="whitespace-pre-wrap">{m.text}</p>
+                      {m.applied && m.applied.length > 0 && (
+                        <ul className="mt-1 space-y-0.5 text-[10px] text-muted-foreground">
+                          {m.applied.map((a, j) => (
+                            <li key={j}>✓ {a}</li>
+                          ))}
+                        </ul>
+                      )}
+                      {m.role === "assistant" && m.suggestions && m.suggestions.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {m.suggestions.map((chip) => (
+                            <button
+                              key={chip}
+                              type="button"
+                              onClick={() => {
+                                setInput(chip);
+                                inputRef.current?.focus();
+                              }}
+                              className="rounded-full border bg-background px-2 py-0.5 text-[10px] hover:border-primary/40"
+                            >
+                              {chip}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {busy && (
+                  <div className="rounded-lg border bg-muted/30 px-2.5 py-2 text-[11px] text-muted-foreground">
+                    {s.editor.revising}
+                  </div>
+                )}
+                <div ref={endRef} />
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  send(input);
+                }}
+                className="flex items-end gap-2 border-t bg-background p-3"
+              >
+                <textarea
+                  ref={inputRef}
+                  className="h-10 max-h-32 flex-1 resize-none rounded-md border px-3 py-2 text-xs"
+                  placeholder={
+                    isCustomRailKey(activeRailKey)
+                      ? uiLocale === "fr"
+                        ? "Modifier cette diapositive personnalisée…"
+                        : "Edit this custom slide…"
+                      : sectionChatPlaceholder(editorProgress.currentSection, uiLocale)
+                  }
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      send(input);
+                    }
+                  }}
+                  disabled={busy}
+                />
+                <button
+                  type="submit"
+                  disabled={busy || !input.trim()}
+                  className="inline-flex h-9 items-center justify-center rounded-md border bg-background px-3 text-xs font-medium text-foreground hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {s.editor.send}
+                </button>
+              </form>
+            </div>
+
+            <EditorCapabilities locale={uiLocale} />
+          </div>
         </div>
       </div>
     </div>

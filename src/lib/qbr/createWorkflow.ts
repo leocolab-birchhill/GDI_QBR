@@ -336,6 +336,7 @@ export async function saveEditorMessage(args: {
   text: string;
   actorEmail?: string;
   actorName?: string;
+  section?: string | null;
   metadata?: Record<string, unknown>;
 }) {
   return prisma.editorMessage.create({
@@ -345,17 +346,19 @@ export async function saveEditorMessage(args: {
       text: args.text,
       actorEmail: args.actorEmail ?? null,
       actorName: args.actorName ?? null,
+      section: args.section ?? null,
       metadataJson: args.metadata ? JSON.stringify(args.metadata) : null,
     },
   });
 }
 
 /** Load editor messages for collaborative session (newest last). */
-export async function loadEditorMessages(qbrCycleId: string, since?: Date) {
+export async function loadEditorMessages(qbrCycleId: string, since?: Date, section?: string | null) {
   return prisma.editorMessage.findMany({
     where: {
       qbrCycleId,
       ...(since ? { createdAt: { gt: since } } : {}),
+      ...(section ? { section } : {}),
     },
     orderBy: { createdAt: "asc" },
     take: 200,

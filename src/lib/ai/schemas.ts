@@ -83,6 +83,21 @@ export const MissingInfoQuestionsSchema = z.object({
 });
 export type MissingInfoQuestions = z.infer<typeof MissingInfoQuestionsSchema>;
 
+/**
+ * A user-created slide inserted between the built-in sections. `body` is plain
+ * text: for "prose" one item per line ("Title: detail" or just a line of text);
+ * for "table" one row per line with cells separated by "|" (first line =
+ * headers). `afterSection` anchors it after a built-in section.
+ */
+export const CustomSlideSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  kind: z.enum(["prose", "table"]),
+  body: z.string().default(""),
+  afterSection: z.string().default("whatsNext"),
+});
+export type CustomSlide = z.infer<typeof CustomSlideSchema>;
+
 export const SlideContentSchema = z.object({
   title: z.object({
     clientName: z.string(),
@@ -114,8 +129,16 @@ export const SlideContentSchema = z.object({
         }),
       )
       .optional(),
+    /** Dashboard group titles (standard or custom) hidden from the deck. */
+    hiddenGroups: z.array(z.string()).optional(),
   }),
   whatsNext: z.array(z.object({ number: z.number(), title: z.string(), detail: z.string() })),
+  /** User-created slides inserted between the built-in sections. */
+  customSlides: z.array(CustomSlideSchema).optional(),
+  /** Built-in sections hidden from the rendered deck ("title" never hides). */
+  hiddenSections: z.array(z.string()).optional(),
+  /** Custom order of the movable middle sections (agenda…whatsNext). */
+  sectionOrder: z.array(z.string()).optional(),
 });
 export type SlideContent = z.infer<typeof SlideContentSchema>;
 
@@ -178,6 +201,15 @@ export const SLIDE_EDIT_OPS = [
   "set_agenda",
   "set_meeting_date",
   "set_next_meeting_date",
+  // Deck structure edits: add/edit/remove/move whole slides, hide built-in
+  // sections, and add/remove dashboard groups.
+  "add_slide",
+  "edit_slide",
+  "remove_slide",
+  "move_slide",
+  "set_section_hidden",
+  "add_dashboard_group",
+  "remove_dashboard_group",
   // Presentation-level (deck-wide) format edits.
   "set_page_numbers",
   "set_footer",
@@ -197,14 +229,56 @@ export const SlideEditOpSchema = z.object({
   owner: z.string().nullable().optional(),
   status: z.string().nullable().optional(),
   date: z.string().nullable().optional(),
+  // Structure-op fields (add_slide / edit_slide / move_slide / hide sections).
+  slideId: z.string().nullable().optional(),
+  kind: z.enum(["prose", "table"]).nullable().optional(),
+  body: z.string().nullable().optional(),
+  afterSection: z.string().nullable().optional(),
+  section: z.string().nullable().optional(),
+  hidden: z.boolean().nullable().optional(),
 });
 export type SlideEditOp = z.infer<typeof SlideEditOpSchema>;
+
+/** Targets for direct deck-metadata patches (layout + presentation options). */
+export const DECK_PATCH_TARGETS = [
+  "deckLayout.customSlides",
+  "deckLayout.hiddenSections",
+  "deckLayout.sectionOrder",
+  "deckLayout.hiddenDashboardGroups",
+  "deckLayout.extraDashboardGroups",
+  "deckOptions",
+] as const;
+
+export const DeckPatchActionSchema = z.enum(["add", "update", "remove", "set"]);
+export type DeckPatchAction = z.infer<typeof DeckPatchActionSchema>;
+
+/**
+ * A validated patch to deck layout or presentation metadata. Prefer patches over
+ * operations for structural/format edits (e.g. prose → table on a custom slide).
+ */
+export const DeckPatchSchema = z.object({
+  target: z.enum(DECK_PATCH_TARGETS),
+  /** add | update | remove | set — see editor prompt for defaults per target. */
+  action: DeckPatchActionSchema.optional(),
+  /** Match a custom slide by id and/or title (case-insensitive). */
+  match: z
+    .object({
+      id: z.string().optional(),
+      title: z.string().optional(),
+    })
+    .optional(),
+  /** Fields to merge or replace — shape depends on target + action. */
+  set: z.record(z.unknown()).optional(),
+});
+export type DeckPatch = z.infer<typeof DeckPatchSchema>;
 
 export const SlideEditSchema = z.object({
   /** Conversational reply describing what was changed / asking clarifying Qs. */
   reply: z.string(),
-  /** Structured edits to apply to the QBR deck data. */
+  /** Structured content edits (metrics, priorities, follow-ups, etc.). */
   operations: z.array(SlideEditOpSchema).default([]),
+  /** Direct deck layout / format metadata patches. */
+  patches: z.array(DeckPatchSchema).default([]),
   /** Whether to regenerate the .pptx after applying edits. */
   regenerate: z.boolean().default(true),
   /** Short suggested follow-up edits the agent offers to do next. */

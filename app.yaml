@@ -1,0 +1,82 @@
+# GDI QBR OS — Databricks Apps runtime configuration
+# Docs: https://docs.databricks.com/dev-tools/databricks-apps/
+#
+# Resource keys (postgres, storage-volume, *-secret) must match databricks.yml
+# and the resources you attach to the app in the Databricks UI.
+
+command:
+  - npm
+  - run
+  - databricks:start
+
+env:
+  - name: NODE_ENV
+    value: production
+  - name: APP_ENV
+    value: production
+  - name: NODE_OPTIONS
+    value: "--use-system-ca"
+
+  # Prisma requires DATABASE_URL in schema; Lakebase auth uses PGHOST + adapter.
+  - name: DATABASE_URL
+    value: postgresql://lakebase@localhost:5432/databricks_postgres?schema=public
+
+  # Lakebase Postgres (auto-injects PGHOST, PGDATABASE, PGUSER, PGSSLMODE, …)
+  - name: LAKEBASE_ENDPOINT
+    valueFrom: postgres
+
+  # Unity Catalog volume for generated decks / logos
+  - name: STORAGE_BACKEND
+    value: volume
+  - name: UC_VOLUME_PATH
+    valueFrom: storage-volume
+  - name: LOCAL_STORAGE_PATH
+    value: storage
+
+  # Bundled house template ships with the app bundle (not on the volume).
+  - name: QBR_TEMPLATE_PATH
+    value: ./templates/qbr_brand_template.pptx
+
+  # Email
+  - name: EMAIL_PROVIDER
+    value: graph
+  - name: QBR_MAILBOX
+    value: QBR_Robot@outlook.com
+  - name: EMAIL_SENDER_NAME
+    value: GDI QBR OS
+  - name: OUTLOOK_POLL_INTERVAL_SECONDS
+    value: "30"
+
+  # ── UPDATE AFTER FIRST DEPLOY with your real app URL ──
+  - name: APP_URL
+    value: https://business-review-agent-4200208477969544.4.azure.databricksapps.com
+  - name: FRONTEND_URL
+    value: https://business-review-agent-4200208477969544.4.azure.databricksapps.com
+  - name: MICROSOFT_REDIRECT_URI
+    value: https://business-review-agent-4200208477969544.4.azure.databricksapps.com/api/outlook/callback
+
+  # Set to "true" on first deploy only, then remove or set "false".
+  - name: RUN_DB_SEED
+    value: "true"
+
+  # Secrets — create scope gdi-qbr-os-secrets and attach as app resources
+  - name: OPENAI_API_KEY
+    valueFrom: openai-secret
+  - name: SECRET_KEY
+    valueFrom: app-secret
+  - name: MICROSOFT_CLIENT_ID
+    valueFrom: ms-client-id-secret
+  - name: MICROSOFT_CLIENT_SECRET
+    valueFrom: ms-client-secret
+  - name: MICROSOFT_TENANT
+    value: common
+  - name: MICROSOFT_SCOPES
+    value: User.Read Mail.Send Mail.ReadWrite offline_access
+  - name: OPENAI_MODEL
+    value: gpt-5.5
+  - name: OPENAI_REASONING_EFFORT
+    value: medium
+
+  # Optional — paste a Graph refresh token to skip OAuth click-through
+  # - name: GRAPH_REFRESH_TOKEN
+  #   valueFrom: graph-refresh-secret

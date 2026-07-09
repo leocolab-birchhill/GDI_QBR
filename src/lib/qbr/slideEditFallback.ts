@@ -46,6 +46,33 @@ function parseOne(raw: string): Parsed | null {
   if (!line) return null;
   const lower = line.toLowerCase();
 
+  // ── Add a custom slide ───────────────────────────────────────────────────────
+  const addSlide = line.match(
+    /^(?:please\s+)?(?:add|create|insert)\s+(?:a\s+)?(?:new\s+)?slide(?:\s+(?:called|titled|named))?\s*[:"']?\s*(.+?)\s*$/i,
+  );
+  if (addSlide) {
+    const title = addSlide[1].trim().replace(/^["']|["']$/g, "");
+    const kind = /\btable\b/i.test(lower) ? "table" : "prose";
+    return {
+      op: { type: "add_slide", title, kind, body: "", afterSection: "whatsNext" },
+      describe: `Add a new slide "${title}"`,
+    };
+  }
+
+  // ── Remove dashboard section/group ───────────────────────────────────────────
+  const removeDash = line.match(
+    /^(?:please\s+)?(?:remove|delete|hide)\s+(?:the\s+)?(?:(\w[\w\s&]+?)\s+)?(?:dashboard\s+)?(?:section|group|column)\s*$/i,
+  );
+  if (removeDash && /dashboard|financial|operational|safety|health/i.test(lower)) {
+    const group = removeDash[1]?.trim() || (/\bfinanc/i.test(lower) ? "Financial" : /\boperat/i.test(lower) ? "Operational" : /\bsafety|health/i.test(lower) ? "Health & Safety" : "Financial");
+    return { op: { type: "remove_dashboard_group", group }, describe: `Remove dashboard section "${group}"` };
+  }
+  if (/^(?:please\s+)?(?:remove|delete|hide)\s+(?:the\s+)?(financial|operational|health\s*&\s*safety)\s+(?:dashboard\s+)?(?:section|group)/i.test(lower)) {
+    const m = lower.match(/(financial|operational|health\s*&\s*safety|health and safety)/i);
+    const group = m ? m[1].replace(/health and safety/i, "Health & Safety").replace(/\b\w/g, (c) => c.toUpperCase()) : "Financial";
+    return { op: { type: "remove_dashboard_group", group }, describe: `Remove dashboard section "${group}"` };
+  }
+
   // ── Presentation-level format edits (handled first so "add page numbers" is not
   //    mistaken for a metric, and so the editor never refuses a format request) ──
   const fmt = parseFormat(line, lower);
@@ -227,6 +254,7 @@ export function parseSlideEditFallback(message: string, context: AnswerContext):
       reply:
         'I can edit the deck for you — tell me what to change with a value, e.g. "Set Average inspection score to 92%", "Add what\'s-next item: window washing proposal in June", "Mark the dock-access follow-up as complete", or "Remove the parking priority". I\'ll regenerate the PowerPoint right after.',
       operations: [],
+      patches: [],
       regenerate: false,
       suggestions: buildSuggestions(context),
     };
@@ -240,6 +268,7 @@ export function parseSlideEditFallback(message: string, context: AnswerContext):
   return {
     reply,
     operations: parsed.map((p) => p.op),
+    patches: [],
     regenerate: true,
     suggestions: buildSuggestions(context),
   };

@@ -102,8 +102,19 @@ export function localizeSlideContentForLocale(content: SlideContent, locale: Loc
         label: localizeMetricLabel(r.label, locale),
         value: localizeValue(r.value, locale),
       })),
+      customGroups: content.dashboard.customGroups?.map((g) => ({
+        title: g.title,
+        rows: g.rows.map((r) => ({
+          label: localizeMetricLabel(r.label, locale),
+          value: localizeValue(r.value, locale),
+        })),
+      })),
+      hiddenGroups: content.dashboard.hiddenGroups ? [...content.dashboard.hiddenGroups] : undefined,
     },
     whatsNext: content.whatsNext.map((u) => ({ ...u })),
+    customSlides: content.customSlides?.map((s) => ({ ...s })),
+    hiddenSections: content.hiddenSections ? [...content.hiddenSections] : undefined,
+    sectionOrder: content.sectionOrder ? [...content.sectionOrder] : undefined,
   };
 }
 

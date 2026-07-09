@@ -6,6 +6,9 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts"],
     globals: true,
+    env: {
+      DATABASE_URL: "postgresql://qbr:qbr@localhost:5432/qbr?schema=public",
+    },
   },
   resolve: {
     alias: {

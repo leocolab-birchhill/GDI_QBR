@@ -111,7 +111,67 @@ describe("slide manifest matches the renderer", () => {
     expect(changedSectionsForOps(["set_metric"])).toEqual(["dashboard"]);
     expect(changedSectionsForOps(["add_priority", "reword_priority"])).toEqual(["priorities"]);
     expect(changedSectionsForOps(["add_commitment"])).toEqual(["followUps"]);
+    expect(changedSectionsForOps(["add_slide", "set_section_hidden"])).toEqual(["agenda"]);
+    expect(changedSectionsForOps(["remove_dashboard_group"])).toEqual(["dashboard"]);
     // Deck-wide format ops affect every slide → no specific scroll target.
     expect(changedSectionsForOps(["set_footer", "set_page_numbers"])).toEqual([]);
+  });
+
+  it("omits hidden sections from the manifest", async () => {
+    const content = { ...base, hiddenSections: ["agenda", "questions"] };
+    const manifest = buildDeckManifest(content);
+    expect(manifest.some((s) => s.section === "agenda")).toBe(false);
+    expect(manifest.some((s) => s.section === "questions")).toBe(false);
+    const buf = await generateQbrDeck(content);
+    expect(manifest.length).toBe(renderedSlideCount(buf));
+  });
+
+  it("includes custom slides after their anchor section", async () => {
+    const content = {
+      ...base,
+      customSlides: [
+        {
+          id: "custom-1",
+          title: "Site notes",
+          kind: "prose" as const,
+          body: "Lobby refresh: paint scheduled for July",
+          afterSection: "dashboard",
+        },
+      ],
+    };
+    const manifest = buildDeckManifest(content);
+    const dashIdx = manifest.findIndex((s) => s.section === "dashboard" && !s.continuation);
+    const customIdx = manifest.findIndex((s) => "customId" in s && s.customId === "custom-1");
+    expect(customIdx).toBeGreaterThan(dashIdx);
+    const buf = await generateQbrDeck(content);
+    expect(manifest.length).toBe(renderedSlideCount(buf));
+  });
+
+  it("skips hidden dashboard groups", async () => {
+    const content = {
+      ...base,
+      dashboard: {
+        ...base.dashboard,
+        hiddenGroups: ["Financial"],
+      },
+    };
+    const manifest = buildDeckManifest(content);
+    const dash = manifest.filter((s) => s.section === "dashboard" && s.kind === "dashboard");
+    expect(dash.length).toBeGreaterThan(0);
+    for (const slide of dash) {
+      if (slide.kind !== "dashboard") continue;
+      for (const col of slide.columns) {
+        expect(col.title.toLowerCase()).not.toContain("financial");
+      }
+    }
+    const buf = await generateQbrDeck(content);
+    expect(manifest.length).toBe(renderedSlideCount(buf));
+  });
+
+  it("respects a custom section order", () => {
+    const content = { ...base, sectionOrder: ["dashboard", "agenda", "followUps", "priorities", "whatsNext"] };
+    const manifest = buildDeckManifest(content);
+    const firstContent = manifest.find((s) => s.section !== "title");
+    expect(firstContent?.section).toBe("dashboard");
   });
 });

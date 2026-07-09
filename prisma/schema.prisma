@@ -1,15 +1,15 @@
 // GDI QBR OS — Prisma schema
-// NOTE: provider is SQLite for zero-config local dev (DATABASE_URL=file:./dev.db).
-// To use Postgres, change provider to "postgresql" and point DATABASE_URL at it.
-// SQLite has no native enums/arrays; enum-like fields are strings whose allowed
-// values are documented in src/lib/constants.ts (kept as the single source of truth).
+// Production (Databricks Apps): Lakebase Postgres via @databricks/lakebase adapter.
+// Local dev: docker compose up -d && DATABASE_URL=postgresql://qbr:qbr@localhost:5432/qbr
+// Enum-like fields are strings — allowed values in src/lib/constants.ts.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -82,6 +82,9 @@ model QbrCycle {
   language         String?
   // Custom agenda section order/labels (JSON array of strings).
   agendaSectionsJson String?
+  // Deck structure (custom slides, hidden sections, section order, hidden and
+  // extra dashboard groups). JSON blob — see src/lib/qbr/deckLayout.ts.
+  deckLayoutJson   String   @default("{}")
   // Guided editor progress: current slide index, confirmed sections, etc.
   editorProgressJson String @default("{}")
   createdAt        DateTime @default(now())
@@ -112,6 +115,8 @@ model EditorMessage {
   text        String
   actorEmail  String?
   actorName   String?
+  // Guided section this message relates to (drives per-slide chat threads).
+  section     String?
   metadataJson String? // applied changes, suggestions, deck ref, etc.
   createdAt   DateTime @default(now())
 

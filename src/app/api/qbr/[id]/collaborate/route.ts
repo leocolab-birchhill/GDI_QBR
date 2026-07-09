@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { editSlides } from "@/lib/ai";
 import { hasOpenAi } from "@/lib/env";
-import { buildAnswerContext } from "@/lib/qbr/answerContext";
+import { buildEditorContext } from "@/lib/qbr/editorContext";
+import { applyDeckPatches, changedSectionsForPatches } from "@/lib/qbr/deckPatches";
 import {
   applySlideEdits,
   generateDraft,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/qbr/service";
 import { confirmGuidedSection, saveEditorMessage } from "@/lib/qbr/createWorkflow";
 import { changedSectionsForOps } from "@/lib/ppt/slideManifest";
+import { primarySectionForOps } from "@/lib/qbr/sectionGuidance";
 import { SlideEditOpSchema, type SlideContent } from "@/lib/ai/schemas";
 import {
   getGuidedPrompt,
@@ -26,7 +28,8 @@ const Schema = z.object({
   actorEmail: z.string().optional(),
   actorName: z.string().optional(),
   confirmSection: z.string().optional(),
-}).refine((v) => (v.message?.trim() || v.operations?.length), {
+  activeSection: z.string().optional(),
+}).refine((v) => v.message?.trim() || v.operations?.length, {
   message: "Provide a message or at least one edit operation",
 });
 
@@ -35,7 +38,7 @@ const CONFIRM_PATTERNS = /^(confirm|confirmer|ok|next|suivant|done|terminé)\.?$
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const body = Schema.parse(await req.json());
-    const { operations, actorEmail, actorName, confirmSection } = body;
+    const { operations, actorEmail, actorName, confirmSection, activeSection } = body;
     const message = body.message?.trim() ?? "";
 
     const full = await getQbrFull(params.id);
@@ -44,6 +47,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const uiLocale = getServerUiLocale();
     const strings = getStrings(uiLocale);
     const progress = readEditorProgress(full.editorProgressJson);
+    const threadSection = activeSection ?? progress.currentSection;
 
     if (message) {
       await saveEditorMessage({
@@ -52,6 +56,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         text: message,
         actorEmail,
         actorName,
+        section: threadSection,
       });
     }
 
@@ -85,6 +90,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           ? "Aucune modification appliquee."
           : "No changes applied.";
 
+      const msgSection = primarySectionForOps(
+        operations.map((o) => o.type),
+        threadSection,
+      );
+      const assistantMsg =
+        changed || operations.length
+          ? await saveEditorMessage({
+              qbrCycleId: params.id,
+              role: "assistant",
+              text: reply,
+              section: msgSection,
+              metadata: { applied, deck, suggestions: [] },
+            })
+          : null;
+
       return NextResponse.json({
         ok: true,
         reply,
@@ -97,7 +117,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         changed,
         aiEnabled: hasOpenAi(),
         editorProgress: progress,
-        messageId: null,
+        messageId: assistantMsg?.id ?? null,
       });
     }
 
@@ -121,6 +141,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         qbrCycleId: params.id,
         role: "assistant",
         text: reply,
+        section: nextSection,
         metadata: { guided: true, section, nextSection },
       });
 
@@ -140,8 +161,14 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       });
     }
 
-    const edit = await editSlides({ message, context: buildAnswerContext(full) });
-    const applied = await applySlideEdits(params.id, edit.operations);
+    const edit = await editSlides({
+      message,
+      context: buildEditorContext(full),
+      activeSection: threadSection,
+    });
+    const appliedOps = await applySlideEdits(params.id, edit.operations);
+    const patchResult = await applyDeckPatches(params.id, edit.patches ?? []);
+    const applied = [...appliedOps, ...patchResult.changes];
 
     const changed = applied.length > 0;
     let deck: { fileName: string; fileUrl: string; versionNumber: number } | null = null;
@@ -161,24 +188,28 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       }
       const refreshed = await getQbrFull(params.id);
       options = readDeckOptions(refreshed?.deckOptionsJson);
-      changedSections = changedSectionsForOps(edit.operations.map((o) => o.type));
+      changedSections = [
+        ...changedSectionsForOps(edit.operations.map((o) => o.type)),
+        ...changedSectionsForPatches(edit.patches ?? []),
+      ];
     }
 
     let reply =
-      !changed && edit.operations.length > 0
+      !changed && (edit.operations.length > 0 || (edit.patches?.length ?? 0) > 0)
         ? uiLocale === "fr"
           ? "Je n'ai rien pu modifier — l'élément était déjà défini, déjà présent, ou introuvable. Essayez de nommer l'élément exact et la nouvelle valeur."
           : "I couldn't change anything with that — the item(s) I matched were already set, already present, or I couldn't find them on the deck. Try naming the exact slide item and the new value."
         : edit.reply;
 
-    if (progress.guidedMode && changed) {
-      reply += `\n\n${getGuidedPrompt(progress.currentSection, uiLocale)}`;
-    }
-
     const assistantMsg = await saveEditorMessage({
       qbrCycleId: params.id,
       role: "assistant",
       text: reply,
+      section: primarySectionForOps(
+        edit.operations.map((o) => o.type),
+        threadSection,
+        edit.patches?.map((p) => p.target),
+      ),
       metadata: { applied, deck, suggestions: edit.suggestions },
     });
 

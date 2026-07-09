@@ -12,6 +12,7 @@ import {
   type Locale,
 } from "../i18n";
 import { normalizeSlideContent } from "../ppt/textNormalize";
+import { readDeckLayout } from "./deckLayout";
 import { getQbrFull } from "./service";
 
 type Qbr = NonNullable<Awaited<ReturnType<typeof getQbrFull>>>;
@@ -48,12 +49,17 @@ export async function buildSlideContent(
     return normalizeSlideContent(localized);
   }
   const ai = await generateSlideContent({ data: serializeForAi(qbr) }).catch(() => null);
-  // Prefer AI content but guard against empty/invalid sections.
+  // Prefer AI content but guard against empty/invalid sections. Deck structure
+  // (custom slides, hidden sections, order) is always the deterministic layout.
   if (ai && ai.priorityItems?.length >= 0 && ai.dashboard) {
     const merged = {
       ...ai,
       title: deterministic.title,
       agenda: deterministic.agenda,
+      dashboard: { ...ai.dashboard, hiddenGroups: deterministic.dashboard.hiddenGroups },
+      customSlides: deterministic.customSlides,
+      hiddenSections: deterministic.hiddenSections,
+      sectionOrder: deterministic.sectionOrder,
     };
     const localized = await applyDeckLocale(merged, locale, opts?.forceTranslate);
     return normalizeSlideContent(localized);
@@ -91,6 +97,7 @@ function serializeForAi(qbr: Qbr) {
 export function deterministicSlideContent(qbr: Qbr, locale?: string | null): SlideContent {
   const loc = locale ?? resolveQbrLocale(qbr);
   const confirm = toConfirmLabel(loc);
+  const layout = readDeckLayout(qbr.deckLayoutJson);
 
   let agenda = defaultAgenda(loc);
   if (qbr.agendaSectionsJson) {
@@ -121,12 +128,17 @@ export function deterministicSlideContent(qbr: Qbr, locale?: string | null): Sli
       .filter((m) => m.group === group)
       .map((m) => ({ label: m.label, value: m.value || confirm }));
   const standardGroups = new Set(["Health & Safety", "Operational", "Financial"]);
-  const customDashboardGroups = [...new Set(qbr.dashboardMetrics.map((m) => m.group).filter((g) => !standardGroups.has(g)))]
-    .map((group) => ({
-      title: group,
-      rows: byGroup(group),
-    }))
-    .filter((g) => g.rows.length > 0);
+  const customGroupTitles = [
+    ...new Set([
+      ...qbr.dashboardMetrics.map((m) => m.group).filter((g) => !standardGroups.has(g)),
+      // Groups created before any metric exists in them (empty for now).
+      ...layout.extraDashboardGroups,
+    ]),
+  ];
+  const customDashboardGroups = customGroupTitles.map((group) => ({
+    title: group,
+    rows: byGroup(group),
+  }));
 
   const whatsNext = qbr.upcomingItems.map((u, i) => ({
     number: i + 1,
@@ -150,8 +162,12 @@ export function deterministicSlideContent(qbr: Qbr, locale?: string | null): Sli
       operational: byGroup("Operational"),
       financial: byGroup("Financial"),
       customGroups: customDashboardGroups,
+      hiddenGroups: layout.hiddenDashboardGroups,
     },
     whatsNext,
+    customSlides: layout.customSlides,
+    hiddenSections: layout.hiddenSections,
+    sectionOrder: layout.sectionOrder,
   };
 }
 

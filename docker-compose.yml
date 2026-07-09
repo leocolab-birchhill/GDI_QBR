@@ -1,9 +1,7 @@
-# Optional local Postgres. The default local setup uses SQLite (file:./dev.db),
-# so Docker is NOT required to run the MVP. Use this if you prefer Postgres:
-#   1) docker compose up -d
-#   2) set DATABASE_URL=postgresql://qbr:qbr@localhost:5432/qbr?schema=public in .env.local
-#   3) change prisma/schema.prisma datasource provider to "postgresql"
-#   4) npx prisma migrate dev
+# Local Postgres for development (required after switching from SQLite).
+#   docker compose up -d
+#   set DATABASE_URL=postgresql://qbr:qbr@localhost:5432/qbr?schema=public in .env
+#   npx prisma migrate dev
 services:
   postgres:
     image: postgres:16-alpine

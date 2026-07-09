@@ -1,4 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/db", () => ({
+  prisma: {
+    qbrCycle: { findUnique: vi.fn().mockResolvedValue(null) },
+  },
+}));
+
 import { enrichWithEditorLink } from "@/lib/email/outboundEnrichment";
 import { editorUrl } from "@/lib/email/branding";
 

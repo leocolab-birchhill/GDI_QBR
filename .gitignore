@@ -39,5 +39,5 @@ prisma/dev.db-journal
 # typescript
 *.tsbuildinfo
 
-# testing
-/coverage
+# Databricks bundle sync output
+.databricks/

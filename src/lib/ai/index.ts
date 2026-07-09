@@ -28,6 +28,7 @@ import {
 import { AnswerContext, deterministicAnswer } from "../qbr/answer";
 import { detectAction } from "../qbr/action";
 import { parseSlideEditFallback } from "../qbr/slideEditFallback";
+import type { EditorContext } from "../qbr/editorContext";
 import {
   fallbackClassify,
   fallbackExtract,
@@ -277,40 +278,62 @@ Respond ONLY with JSON: {"reply": string, "action": one of [${actionsList}], "re
  */
 export async function editSlides(input: {
   message: string;
-  context: AnswerContext;
+  context: EditorContext;
+  activeSection?: string | null;
 }): Promise<SlideEditResult> {
   const ops =
-    "set_metric{group,label,value}, remove_metric{label}, add_priority{title,explanation}, reword_priority{title,explanation}, remove_priority{title}, add_upcoming{title,detail}, remove_upcoming{title}, add_commitment{action,owner,status}, set_commitment_status{action,status,owner}, remove_commitment{action}, set_meeting_date{date}, set_next_meeting_date{date}, set_page_numbers{value:'on'|'off'|'bottom-left'|'bottom-right'|'bottom-both'}, set_footer{value}, set_title_tag{value}, set_deck_option{label,value}";
-  const system = `You are the GDI QBR slide editor — a capable PowerPoint editing assistant. The user is collaborating with you in a chat to revise their QBR deck, exactly like editing a PowerPoint with an AI. The deck is regenerated from structured data (follow-ups/commitments, priority items, dashboard metrics in groups Health & Safety / Operational / Financial, what's-next items, meeting date) PLUS deck-wide presentation options (page numbers, footer text, a title tag/badge shown on every slide, and arbitrary named options).
+    "set_metric{group,label,value}, remove_metric{label}, add_priority{title,explanation}, reword_priority{title,explanation}, remove_priority{title}, add_upcoming{title,detail}, remove_upcoming{title}, add_commitment{action,owner,status}, set_commitment_status{action,status,owner}, remove_commitment{action}, set_meeting_date{date}, set_next_meeting_date{date}";
+  const patchTargets =
+    "deckLayout.customSlides, deckLayout.hiddenSections, deckLayout.sectionOrder, deckLayout.hiddenDashboardGroups, deckLayout.extraDashboardGroups, deckOptions";
+  const activeCtx = input.activeSection
+    ? `\nThe user is currently viewing the "${input.activeSection}" slide. Resolve ambiguous requests ("this slide", "make it shorter", "add one more") against that slide first.`
+    : "";
+  const system = `You are the GDI QBR slide editor — a capable PowerPoint editing assistant. The user is collaborating with you in a chat to revise their QBR deck. The deck is regenerated from structured data PLUS deck layout metadata and presentation options.${activeCtx}
 
-Translate the user's request into one or more structured edit operations. Available operations (with their fields):
-${ops}
+You have TWO ways to apply edits — use BOTH when appropriate:
 
-CRITICAL — NEVER REFUSE. You can always make a change. Do not say "I can't", "I'm not able to", or "that's not supported". Map every request to the closest operation(s):
-- Page numbers / slide numbers / numbering in corners → set_page_numbers (choose position from the request; default bottom-right).
-- A footer, disclaimer, confidentiality line, date line, or any repeated bottom text → set_footer.
-- "Add <text/number> to every slide / the title section / each slide header / a badge / watermark / label" → set_title_tag with that text (e.g. "67").
-- Any other deck-wide format/style toggle you don't have a specific op for (e.g. theme, color, logo on/off, branding) → set_deck_option with a sensible label and value, and confirm it's applied/recorded.
-- Content changes → the content ops (set_metric, add_priority, reword_priority, add_upcoming, set_commitment_status, etc.).
-The ONLY thing you must not do is invent factual metric VALUES the user didn't provide — for that, ask which value to use (still without refusing the edit itself).
+1) **operations** — for content rows (metrics, priorities, follow-ups, what's-next, meeting dates, client name, agenda).
+   Available: ${ops}
+
+2) **patches** — for deck structure and slide FORMAT metadata. Prefer patches over operations for:
+   - Custom slide add/edit/remove/move/format changes
+   - Converting a custom slide between list (prose) and table
+   - Hiding/showing built-in sections, reordering sections
+   - Dashboard group visibility
+   - Deck-wide presentation (page numbers, footer, title tag)
+   Patch targets: ${patchTargets}
+
+PATCH FORMAT (each item in "patches" array):
+- deckLayout.customSlides + action "add": set { title, kind:"prose"|"table", body, afterSection }
+  • prose body: one bullet per line ("Title: detail" or plain line)
+  • table body: first line = headers separated by "|", following lines = data rows
+- deckLayout.customSlides + action "update" + match { id or title }: set { title?, kind?, body?, afterSection? }
+  • To convert list → table: set kind "table" AND rewrite body as pipe-separated rows (derive columns from the list content)
+  • To convert table → list: set kind "prose" AND rewrite body as one line per row
+- deckLayout.customSlides + action "remove" + match { id or title }
+- deckLayout.hiddenSections + action "add"|"remove": set { section } — add hides, remove restores
+- deckLayout.sectionOrder + action "set": set { value: ["agenda","priorities",...] }
+- deckLayout.hiddenDashboardGroups / extraDashboardGroups + action "add"|"remove"|"set"
+- deckOptions + action "set": set { pageNumbers, pageNumberPosition, footerText, titleTag, ... } (merged into deck options)
+
+The context JSON includes **slides.customSlides** (current custom slides with id, title, kind, body), **deckLayout**, and **deckOptions** — patch these directly for format/structure edits.
+
+CRITICAL — NEVER REFUSE. Map every request to operations and/or patches.
+- Content changes (metric values, priority text) → operations
+- Slide format, layout, visibility, custom slides → patches
+- Page numbers / footer / title tag → deckOptions patch OR set_page_numbers/set_footer/set_title_tag operations (patches preferred)
 
 Rules:
-- Match existing items by their label/title/action text (case-insensitive).
-- VERBATIM TEXT: When the user supplies explicit replacement text — especially anything in quotes — copy it into the operation field EXACTLY as written. Do NOT rephrase, summarize, re-capitalize, fix grammar, or drop/add words (e.g. keep articles like "a"/"the"). The user's words are final.
-- To rename/replace an existing priority's headline, use reword_priority with title = the item to match and explanation = the user's exact new text. Only use remove_priority + add_priority when the user explicitly asks to delete and create separate items.
-- Do NOT invent body/explanation text. If the user gives only a title with no description, omit the explanation/detail field entirely (leave it blank) — never fabricate supporting prose.
-- Keep wording client-safe and professional ONLY when the user has not dictated exact text; never override text the user explicitly provided.
-- Set "regenerate" true whenever you applied any edit (default true) so a new deck is produced.
-- In "reply", confirm what you changed in plain, friendly language — like a teammate who just made the edit.
+- Match existing items by label/title/action/id (case-insensitive).
+- VERBATIM TEXT: copy user-supplied text EXACTLY into operation/patch fields.
+- Do NOT invent metric VALUES the user didn't provide.
+- Set "regenerate" true whenever you applied any edit (default true).
+- In "reply", confirm what changed in plain language.
 - In "suggestions", offer 2-3 concrete next edits.
-Respond ONLY with JSON: {"reply": string, "operations": [{"type": ..., ...fields}], "regenerate": boolean, "suggestions": string[]}.`;
-  const user = `User request:\n${input.message}\n\nCurrent QBR deck data (JSON):\n${JSON.stringify(input.context, null, 2)}`;
+Respond ONLY with JSON: {"reply": string, "operations": [...], "patches": [...], "regenerate": boolean, "suggestions": string[]}.`;
+  const user = `User request:\n${input.message}\n\nCurrent QBR editor context (JSON):\n${JSON.stringify(input.context, null, 2)}`;
 
-  // Low reasoning effort: this is a fast structured-mapping task, not deep
-  // reasoning — keeps each editor turn snappy.
   const result = await callAndValidate(SlideEditSchema, system, user, { reasoningEffort: "low" });
-  // Deterministic fallback actually parses + applies common edits, so the deck
-  // still updates when no OpenAI key is configured (or the model is down).
   return result ?? parseSlideEditFallback(input.message, input.context);
 }
 

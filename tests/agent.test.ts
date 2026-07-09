@@ -3,6 +3,8 @@ import { detectAction } from "@/lib/qbr/action";
 import { runQbrAgent, editSlides } from "@/lib/ai";
 import { SlideEditSchema } from "@/lib/ai/schemas";
 import { AnswerContext } from "@/lib/qbr/answer";
+import { emptyDeckLayout } from "@/lib/qbr/deckLayout";
+import type { EditorContext } from "@/lib/qbr/editorContext";
 
 function ctx(overrides: Partial<AnswerContext> = {}): AnswerContext {
   return {
@@ -21,6 +23,23 @@ function ctx(overrides: Partial<AnswerContext> = {}): AnswerContext {
     approvals: [],
     deckVersions: [],
     recentEmails: [],
+    ...overrides,
+  };
+}
+
+function editorCtx(overrides: Partial<EditorContext> = {}): EditorContext {
+  const layout = emptyDeckLayout();
+  return {
+    ...ctx(),
+    deckLayout: layout,
+    deckOptions: {},
+    slides: {
+      customSlides: layout.customSlides,
+      hiddenSections: layout.hiddenSections,
+      sectionOrder: layout.sectionOrder,
+      hiddenDashboardGroups: layout.hiddenDashboardGroups,
+      extraDashboardGroups: layout.extraDashboardGroups,
+    },
     ...overrides,
   };
 }
@@ -67,7 +86,7 @@ describe("runQbrAgent (offline fallback)", () => {
 
 describe("editSlides (offline fallback)", () => {
   it("parses a concrete instruction into an edit op and regenerates, even with no model", async () => {
-    const res = await editSlides({ message: "set Average inspection score to 92%", context: ctx() });
+    const res = await editSlides({ message: "set Average inspection score to 92%", context: editorCtx() });
     const parsed = SlideEditSchema.safeParse(res);
     expect(parsed.success).toBe(true);
     expect(res.regenerate).toBe(true);
@@ -75,7 +94,7 @@ describe("editSlides (offline fallback)", () => {
   });
 
   it("asks for specifics (no rebuild) when the instruction is vague", async () => {
-    const res = await editSlides({ message: "update a dashboard metric value", context: ctx() });
+    const res = await editSlides({ message: "update a dashboard metric value", context: editorCtx() });
     expect(res.operations).toEqual([]);
     expect(res.regenerate).toBe(false);
     expect(res.suggestions.length).toBeGreaterThan(0);

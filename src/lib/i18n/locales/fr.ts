@@ -174,12 +174,12 @@ export const fr = {
       canItems: [
         "Mettre à jour les indicateurs, priorités, prochaines étapes et engagements",
         "Ajouter ou retirer des éléments, reformuler le texte, changer le statut",
+        "Masquer des diapositives intégrées, ajouter des diapositives personnalisées et masquer des sections du tableau de bord",
         "Définir les dates de réunion (cette QBR et la suivante)",
         "Activer les numéros de page, le pied de page et une étiquette de titre",
       ],
       cantItems: [
         "Modifier les polices, couleurs, logos ou la mise en page",
-        "Ajouter, supprimer ou réorganiser les diapositives hors structure standard",
         "Téléverser un .pptx personnalisé",
         "Inventer des chiffres — fournissez une valeur ou « À confirmer »",
       ],

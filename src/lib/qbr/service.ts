@@ -9,6 +9,17 @@ import { generateQbrDeck, DeckOptions } from "../ppt/generateQbrDeck";
 import { saveFile, readFile } from "../storage";
 import { buildSlideContent } from "./slideContent";
 import { findExisting } from "./dedupe";
+import {
+  readDeckLayout,
+  serializeDeckLayout,
+  newCustomSlideId,
+  matchStandardGroup,
+  findCustomSlide,
+  MOVABLE_SECTIONS,
+  HIDEABLE_SECTIONS,
+  type DeckLayout,
+} from "./deckLayout";
+import { GUIDED_SECTIONS, type GuidedSection } from "../i18n";
 
 /** Find an account by (fuzzy) client name, or create one. */
 export async function findOrCreateAccount(clientName: string) {
@@ -97,6 +108,21 @@ async function mergeDeckOptions(qbrCycleId: string, patch: Record<string, unknow
     where: { id: qbrCycleId },
     data: { deckOptionsJson: JSON.stringify(next) },
   });
+}
+
+/** Load, mutate, and persist the cycle's deck layout (structure) blob. */
+async function mutateDeckLayout(
+  qbrCycleId: string,
+  mutate: (layout: DeckLayout) => void,
+): Promise<DeckLayout> {
+  const cycle = await prisma.qbrCycle.findUnique({ where: { id: qbrCycleId } });
+  const layout = readDeckLayout(cycle?.deckLayoutJson);
+  mutate(layout);
+  await prisma.qbrCycle.update({
+    where: { id: qbrCycleId },
+    data: { deckLayoutJson: serializeDeckLayout(layout) },
+  });
+  return layout;
 }
 
 function normalizeGroup(group?: string): string {
@@ -490,6 +516,152 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
         }
         break;
       }
+      case "add_slide": {
+        const title = (op.title ?? op.label ?? "").trim();
+        if (!title) break;
+        const kind = op.kind === "table" ? "table" : "prose";
+        const body = (op.body ?? op.detail ?? "").trim();
+        const afterSection = (GUIDED_SECTIONS as readonly string[]).includes(op.afterSection ?? "")
+          ? (op.afterSection as string)
+          : "whatsNext";
+        await mutateDeckLayout(qbrCycleId, (layout) => {
+          layout.customSlides.push({ id: newCustomSlideId(), title, kind, body, afterSection });
+        });
+        changes.push(`Added a new ${kind} slide "${title}"`);
+        break;
+      }
+      case "edit_slide": {
+        const cycle = await prisma.qbrCycle.findUnique({ where: { id: qbrCycleId } });
+        const layout = readDeckLayout(cycle?.deckLayoutJson);
+        const match = findCustomSlide(layout, { slideId: op.slideId, title: op.title });
+        if (!match) break;
+        await mutateDeckLayout(qbrCycleId, (l) => {
+          const slide = findCustomSlide(l, { slideId: match.id });
+          if (!slide) return;
+          if (op.value?.trim()) slide.title = op.value.trim();
+          if (op.body != null || op.detail != null) slide.body = (op.body ?? op.detail ?? "").trim();
+          if (op.kind === "prose" || op.kind === "table") slide.kind = op.kind;
+        });
+        changes.push(`Updated the "${match.title}" slide`);
+        break;
+      }
+      case "remove_slide": {
+        const cycle = await prisma.qbrCycle.findUnique({ where: { id: qbrCycleId } });
+        const layout = readDeckLayout(cycle?.deckLayoutJson);
+        const match = findCustomSlide(layout, { slideId: op.slideId, title: op.title });
+        if (match) {
+          await mutateDeckLayout(qbrCycleId, (l) => {
+            l.customSlides = l.customSlides.filter((s) => s.id !== match.id);
+          });
+          changes.push(`Removed the "${match.title}" slide`);
+          break;
+        }
+        // A built-in section named as a "slide" → hide it (data is preserved).
+        const section = resolveSectionRef(op.section ?? op.title);
+        if (section && HIDEABLE_SECTIONS.includes(section)) {
+          await mutateDeckLayout(qbrCycleId, (l) => {
+            if (!l.hiddenSections.includes(section)) l.hiddenSections.push(section);
+          });
+          changes.push(`Hid the ${section} slide (its content is kept and can be shown again)`);
+        }
+        break;
+      }
+      case "move_slide": {
+        const afterSection = resolveSectionRef(op.afterSection);
+        const cycle = await prisma.qbrCycle.findUnique({ where: { id: qbrCycleId } });
+        const layout = readDeckLayout(cycle?.deckLayoutJson);
+        const custom = findCustomSlide(layout, { slideId: op.slideId, title: op.title });
+        if (custom && afterSection) {
+          await mutateDeckLayout(qbrCycleId, (l) => {
+            const slide = findCustomSlide(l, { slideId: custom.id });
+            if (slide) slide.afterSection = afterSection;
+          });
+          changes.push(`Moved the "${custom.title}" slide after ${afterSection}`);
+          break;
+        }
+        const section = resolveSectionRef(op.section ?? op.title);
+        if (
+          section &&
+          afterSection &&
+          MOVABLE_SECTIONS.includes(section) &&
+          section !== afterSection
+        ) {
+          await mutateDeckLayout(qbrCycleId, (l) => {
+            const order = l.sectionOrder.filter((s) => s !== section);
+            const anchorIdx = order.indexOf(afterSection);
+            if (afterSection === "title") order.unshift(section);
+            else if (anchorIdx >= 0) order.splice(anchorIdx + 1, 0, section);
+            else order.push(section);
+            l.sectionOrder = order;
+          });
+          changes.push(`Moved the ${section} slide after ${afterSection}`);
+        }
+        break;
+      }
+      case "set_section_hidden": {
+        const section = resolveSectionRef(op.section ?? op.title);
+        if (!section || !HIDEABLE_SECTIONS.includes(section)) break;
+        const hidden = op.hidden ?? true;
+        await mutateDeckLayout(qbrCycleId, (l) => {
+          l.hiddenSections = l.hiddenSections.filter((s) => s !== section);
+          if (hidden) l.hiddenSections.push(section);
+        });
+        changes.push(hidden ? `Hid the ${section} slide` : `Restored the ${section} slide`);
+        break;
+      }
+      case "add_dashboard_group": {
+        const name = (op.title ?? op.group ?? op.label ?? "").trim();
+        if (!name) break;
+        const standard = matchStandardGroup(name);
+        await mutateDeckLayout(qbrCycleId, (l) => {
+          if (standard) {
+            // Re-adding a standard group un-hides it.
+            l.hiddenDashboardGroups = l.hiddenDashboardGroups.filter(
+              (g) => g.toLowerCase() !== standard.toLowerCase(),
+            );
+          } else {
+            l.hiddenDashboardGroups = l.hiddenDashboardGroups.filter(
+              (g) => g.toLowerCase() !== name.toLowerCase(),
+            );
+            if (!l.extraDashboardGroups.some((g) => g.toLowerCase() === name.toLowerCase())) {
+              l.extraDashboardGroups.push(name);
+            }
+          }
+        });
+        changes.push(`Added dashboard section "${standard ?? name}"`);
+        break;
+      }
+      case "remove_dashboard_group": {
+        const name = (op.group ?? op.title ?? op.label ?? "").trim();
+        if (!name) break;
+        const standard = matchStandardGroup(name);
+        if (standard) {
+          // Standard groups are hidden (reversible), never deleted.
+          await mutateDeckLayout(qbrCycleId, (l) => {
+            if (!l.hiddenDashboardGroups.some((g) => g.toLowerCase() === standard.toLowerCase())) {
+              l.hiddenDashboardGroups.push(standard);
+            }
+          });
+          changes.push(`Removed the ${standard} dashboard section (metrics kept, can be restored)`);
+        } else {
+          const metrics = await prisma.dashboardMetric.findMany({ where: { qbrCycleId } });
+          const targets = metrics.filter((m) => m.group.toLowerCase() === name.toLowerCase());
+          for (const m of targets) {
+            await prisma.dashboardMetric.delete({ where: { id: m.id } });
+          }
+          await mutateDeckLayout(qbrCycleId, (l) => {
+            l.extraDashboardGroups = l.extraDashboardGroups.filter(
+              (g) => g.toLowerCase() !== name.toLowerCase(),
+            );
+          });
+          changes.push(
+            targets.length
+              ? `Removed the "${name}" dashboard section and its ${targets.length} metric(s)`
+              : `Removed the "${name}" dashboard section`,
+          );
+        }
+        break;
+      }
       case "set_page_numbers": {
         const v = (op.value ?? "on").toLowerCase();
         const on = !/^(off|no|false|hide|remove|none)$/.test(v);
@@ -768,6 +940,24 @@ export async function finalize(qbrCycleId: string, opts?: { allowOverride?: bool
   await setStatus(qbrCycleId, "READY_FOR_MEETING");
   await audit({ entityType: "QbrCycle", entityId: qbrCycleId, action: "qbr.finalized" });
   return result;
+}
+
+/**
+ * Resolve a loose section reference ("what's next", "follow ups", "agenda
+ * slide", French labels) to a canonical GuidedSection key.
+ */
+function resolveSectionRef(ref?: string | null): GuidedSection | null {
+  if (!ref) return null;
+  const s = ref.trim().toLowerCase().replace(/\s+slide$/, "").trim();
+  if ((GUIDED_SECTIONS as readonly string[]).includes(s)) return s as GuidedSection;
+  if (/agenda|ordre du jour/.test(s)) return "agenda";
+  if (/follow|commit|engagement|suivi/.test(s)) return "followUps";
+  if (/priorit/.test(s)) return "priorities";
+  if (/dashboard|tableau de bord|metric/.test(s)) return "dashboard";
+  if (/next|upcoming|prochaine/.test(s)) return "whatsNext";
+  if (/question|discussion|closing|clôture/.test(s)) return "questions";
+  if (/^title$|^titre$/.test(s)) return "title";
+  return null;
 }
 
 function parseDate(s?: string | null): Date | null {

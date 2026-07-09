@@ -1,0 +1,62 @@
+# Deploy GDI QBR OS to Databricks Apps when code is merged to main.
+#
+# Required GitHub repository secrets:
+#   DATABRICKS_HOST          — e.g. https://adb-1234567890123456.7.azuredatabricks.net
+#   DATABRICKS_TOKEN         — personal access token or service principal token
+#
+# Optional repository variables (or edit databricks.yml defaults):
+#   LAKEBASE_BRANCH          — full branch path
+#   LAKEBASE_DATABASE        — full database path
+
+name: Deploy to Databricks
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - uses: databricks/setup-cli@v0.272.0
+
+      - name: Validate bundle
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          databricks bundle validate -t prod \
+            --var="lakebase_branch=${{ vars.LAKEBASE_BRANCH }}" \
+            --var="lakebase_database=${{ vars.LAKEBASE_DATABASE }}" \
+            --var="app_name=${{ vars.DATABRICKS_APP_NAME || 'gdi-qbr-os' }}"
+
+      - name: Deploy bundle
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          databricks bundle deploy -t prod \
+            --var="lakebase_branch=${{ vars.LAKEBASE_BRANCH }}" \
+            --var="lakebase_database=${{ vars.LAKEBASE_DATABASE }}" \
+            --var="app_name=${{ vars.DATABRICKS_APP_NAME || 'gdi-qbr-os' }}"
+
+      - name: Start app
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          databricks bundle run gdi-qbr-os -t prod \
+            --var="lakebase_branch=${{ vars.LAKEBASE_BRANCH }}" \
+            --var="lakebase_database=${{ vars.LAKEBASE_DATABASE }}" \
+            --var="app_name=${{ vars.DATABRICKS_APP_NAME || 'gdi-qbr-os' }}"

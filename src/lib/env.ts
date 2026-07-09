@@ -13,7 +13,7 @@ const EnvSchema = z.object({
   APP_URL: z.string().default("http://localhost:3000"),
   SECRET_KEY: z.string().default("change-me-in-prod"),
 
-  DATABASE_URL: z.string().default("file:./dev.db"),
+  DATABASE_URL: z.string().default("postgresql://qbr:qbr@localhost:5432/qbr?schema=public"),
 
   // OpenAI — the ONLY place these are read.
   OPENAI_API_KEY: z.string().optional(),
@@ -22,8 +22,10 @@ const EnvSchema = z.object({
     .enum(["minimal", "low", "medium", "high"])
     .default("medium"),
 
-  STORAGE_BACKEND: z.enum(["local"]).default("local"),
+  STORAGE_BACKEND: z.enum(["local", "volume"]).default("local"),
   LOCAL_STORAGE_PATH: z.string().default("./storage"),
+  /** UC Volume root path (/Volumes/catalog/schema/volume). Set via app.yaml valueFrom. */
+  UC_VOLUME_PATH: z.string().optional(),
 
   // Path to the approved house QBR deck used as the EXACT format example for the
   // AI drafter. Its slide structure/content is extracted at runtime and injected
@@ -49,6 +51,11 @@ const EnvSchema = z.object({
   // Optional: bootstrap the Graph connection without clicking Connect.
   // If set and the DB has no stored connection, it is auto-seeded on first use.
   GRAPH_REFRESH_TOKEN: z.string().optional(),
+
+  // Databricks Apps — injected by the platform; used for Lakebase detection in db.ts.
+  LAKEBASE_ENDPOINT: z.string().optional(),
+  PGHOST: z.string().optional(),
+  DATABRICKS_CLIENT_ID: z.string().optional(),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
