@@ -64,18 +64,18 @@ resources:
             securable_full_name: ${var.volume_catalog}.${var.volume_schema}.${var.volume_name}
             permission: WRITE_VOLUME
 
-        # Secrets (create scope + keys before deploy)
-        - name: openai-secret
+        # Secrets (resource names must match app.yaml valueFrom keys)
+        - name: openai-key
           secret:
             scope: ${var.secret_scope}
             key: OPENAI_API_KEY
             permission: READ
-        - name: app-secret
+        - name: app-secret-key
           secret:
             scope: ${var.secret_scope}
             key: SECRET_KEY
             permission: READ
-        - name: ms-client-id-secret
+        - name: ms-client-id
           secret:
             scope: ${var.secret_scope}
             key: MICROSOFT_CLIENT_ID

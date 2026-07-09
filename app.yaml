@@ -1,13 +1,12 @@
 # GDI QBR OS — Databricks Apps runtime configuration
 # Docs: https://docs.databricks.com/dev-tools/databricks-apps/
 #
-# Resource keys (postgres, storage-volume, *-secret) must match databricks.yml
-# and the resources you attach to the app in the Databricks UI.
+# Resource keys must match the Databricks App resources attached in the UI.
 
 command:
-  - npm
-  - run
-  - databricks:start
+  - sh
+  - -c
+  - NODE_OPTIONS=--use-system-ca next start -p ${DATABRICKS_APP_PORT:-8000} -H 0.0.0.0
 
 env:
   - name: NODE_ENV
@@ -59,13 +58,13 @@ env:
   - name: RUN_DB_SEED
     value: "true"
 
-  # Secrets — create scope gdi-qbr-os-secrets and attach as app resources
+  # Secrets — resource keys must match Databricks App resources
   - name: OPENAI_API_KEY
-    valueFrom: openai-secret
+    valueFrom: openai-key
   - name: SECRET_KEY
-    valueFrom: app-secret
+    valueFrom: app-secret-key
   - name: MICROSOFT_CLIENT_ID
-    valueFrom: ms-client-id-secret
+    valueFrom: ms-client-id
   - name: MICROSOFT_CLIENT_SECRET
     valueFrom: ms-client-secret
   - name: MICROSOFT_TENANT

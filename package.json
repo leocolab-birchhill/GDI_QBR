@@ -19,7 +19,7 @@
     "prisma:reset": "cross-env NODE_OPTIONS=--use-system-ca prisma migrate reset --force",
     "db:seed": "cross-env NODE_OPTIONS=--use-system-ca tsx prisma/seed.ts",
     "graph:token": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/print-graph-token.ts",
-    "postinstall": "cross-env NODE_OPTIONS=--use-system-ca prisma generate"
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
