@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,32 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Admin Settings</h1>
+
+      <Card>
+        <CardHeader><CardTitle>Admin Tools</CardTitle></CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-2">
+          <AdminToolLink
+            href="/admin/accounts"
+            title="Accounts"
+            description="Manage client accounts, ownership, and account metadata."
+          />
+          <AdminToolLink
+            href="/admin/users"
+            title="Users"
+            description="Manage app users and role assignments."
+          />
+          <AdminToolLink
+            href="/api-test/jobs"
+            title="Jobs"
+            description="Run and inspect internal job/test utilities."
+          />
+          <AdminToolLink
+            href="/api-test/email"
+            title="Email Simulator"
+            description="Internal simulator for testing inbound QBR email flows."
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>Microsoft Graph (real email)</CardTitle></CardHeader>
@@ -139,6 +166,18 @@ export default function SettingsPage() {
         {saved && <span className="text-sm text-gdi-green">Saved.</span>}
       </div>
     </div>
+  );
+}
+
+function AdminToolLink({ href, title, description }: { href: string; title: string; description: string }) {
+  return (
+    <Link
+      href={href}
+      className="rounded-lg border bg-white p-4 transition hover:border-primary/40 hover:bg-accent/30"
+    >
+      <div className="font-medium text-foreground">{title}</div>
+      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+    </Link>
   );
 }
 

@@ -71,8 +71,8 @@ export default async function DashboardPage() {
         </div>
         <div className="rounded-lg border bg-card py-10 text-center text-muted-foreground shadow-sm">
           {s.emptyState}{" "}
-          <a href="/api-test/email" className="text-primary underline">
-            {getStrings(locale).nav.emailSim}
+          <a href="/qbr/new" className="text-primary underline">
+            {getStrings(locale).nav.newQbr}
           </a>
         </div>
       </div>
