@@ -50,7 +50,7 @@ export async function resolveDatabaseUrl() {
   }
 
   const { generateDatabaseCredential, getWorkspaceClient } = await import("@databricks/lakebase");
-  const workspaceClient = getWorkspaceClient();
+  const workspaceClient = await getWorkspaceClient({});
   const credential = await generateDatabaseCredential(workspaceClient, { endpoint });
 
   return buildPostgresUrl({

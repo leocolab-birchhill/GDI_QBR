@@ -15,10 +15,12 @@ import { changedSectionsForOps } from "@/lib/ppt/slideManifest";
 import { getSectionReview, primarySectionForOps } from "@/lib/qbr/sectionGuidance";
 import {
   SlideEditOpSchema,
+  DeckPatchSchema,
   FieldChangeSchema,
   type EditorProposal,
   type SlideContent,
   type SlideEditOp,
+  type DeckPatch,
 } from "@/lib/ai/schemas";
 import {
   acceptEditorProposal,
@@ -26,6 +28,7 @@ import {
   rejectEditorProposal,
   undoLastEditorChange,
 } from "@/lib/qbr/editorChangeSets";
+import { applyDeckPatches } from "@/lib/qbr/deckPatches";
 import {
   getGuidedPrompt,
   readEditorProgress,
@@ -38,14 +41,15 @@ import { getServerUiLocale } from "@/lib/i18n/serverLocale";
 const Schema = z.object({
   message: z.string().optional(),
   operations: z.array(SlideEditOpSchema).optional(),
+  patches: z.array(DeckPatchSchema).optional(),
   action: z.enum(["propose", "accept", "reject", "undo", "direct"]).optional(),
   changeSetId: z.string().optional(),
   actorEmail: z.string().optional(),
   actorName: z.string().optional(),
   confirmSection: z.string().optional(),
   activeSection: z.string().optional(),
-}).refine((v) => v.message?.trim() || v.operations?.length || v.action === "accept" || v.action === "reject" || v.action === "undo", {
-  message: "Provide a message, edit operation, or proposal action",
+}).refine((v) => v.message?.trim() || v.operations?.length || v.patches?.length || v.action === "accept" || v.action === "reject" || v.action === "undo", {
+  message: "Provide a message, edit operation, deck patch, or proposal action",
 });
 
 const CONFIRM_PATTERNS = /^(confirm|confirmer|ok|next|suivant|done|terminé)\.?$/i;
@@ -80,7 +84,7 @@ function clientFacingText(operations: SlideEditOp[]): string {
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const body = Schema.parse(await req.json());
-    const { operations, actorEmail, actorName, confirmSection, activeSection, action, changeSetId } = body;
+    const { operations, patches, actorEmail, actorName, confirmSection, activeSection, action, changeSetId } = body;
     const message = body.message?.trim() ?? "";
 
     const full = await getQbrFull(params.id);
@@ -163,8 +167,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       });
     }
 
-    if (operations?.length) {
-      const applied = await applySlideEdits(params.id, operations);
+    if (operations?.length || patches?.length) {
+      const appliedOps = operations?.length ? await applySlideEdits(params.id, operations) : [];
+      const patchResult = patches?.length ? await applyDeckPatches(params.id, patches) : { changes: [], affectedSections: [] };
+      const applied = [...appliedOps, ...patchResult.changes];
       const changed = applied.length > 0;
       let deck: { fileName: string; fileUrl: string; versionNumber: number } | null = null;
       let content: SlideContent | null = null;
@@ -186,7 +192,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         options = readDeckOptions(full.deckOptionsJson);
       }
 
-      const changedSections = changedSectionsForOps(operations.map((o) => o.type));
+      const changedSections = [
+        ...changedSectionsForOps((operations ?? []).map((o) => o.type)),
+        ...changedSectionsForPatches(patches ?? []),
+      ];
       const reply = changed
         ? applied.join("\n")
         : uiLocale === "fr"
@@ -194,11 +203,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           : "No changes applied.";
 
       const msgSection = primarySectionForOps(
-        operations.map((o) => o.type),
+        (operations ?? []).map((o) => o.type),
         threadSection,
+        patches?.map((patch) => patch.target),
       );
       const assistantMsg =
-        changed || operations.length
+        changed || operations?.length || patches?.length
           ? await saveEditorMessage({
               qbrCycleId: params.id,
               role: "assistant",

@@ -5,7 +5,7 @@
  * options directly — preferred over discrete ops for format/structure changes.
  */
 
-import type { DeckPatch } from "../ai/schemas";
+import type { CustomSlide, DeckPatch } from "../ai/schemas";
 import { GUIDED_SECTIONS, type GuidedSection } from "../i18n";
 import { prisma } from "../db";
 import { audit } from "../audit";
@@ -65,6 +65,28 @@ export function applyPatchToLayout(
 
   switch (patch.target) {
     case "deckLayout.customSlides": {
+      if (action === "set") {
+        const raw = set.value;
+        if (!Array.isArray(raw)) return { change: null, section: null };
+        layout.customSlides = raw
+          .filter(
+            (slide: unknown): slide is CustomSlide =>
+              !!slide &&
+              typeof slide === "object" &&
+              typeof (slide as CustomSlide).id === "string" &&
+              typeof (slide as CustomSlide).title === "string",
+          )
+          .map((slide) => ({
+            id: slide.id,
+            title: slide.title,
+            kind: slide.kind === "table" ? "table" : "prose",
+            body: typeof slide.body === "string" ? slide.body : "",
+            afterSection: validAfterSection(
+              typeof slide.afterSection === "string" ? slide.afterSection : "whatsNext",
+            ),
+          }));
+        return { change: "Reordered custom slides", section: layout.customSlides[0]?.afterSection ?? null };
+      }
       if (action === "add") {
         const title = str(set.title);
         if (!title) return { change: null, section: null };
@@ -213,6 +235,7 @@ export function applyPatchToLayout(
 function inferDefaultAction(patch: DeckPatch): DeckPatch["action"] {
   if (patch.target === "deckLayout.customSlides") {
     if (patch.action) return patch.action;
+    if (patch.set?.value != null) return "set";
     return patch.match ? "update" : "add";
   }
   if (patch.target === "deckLayout.sectionOrder") return "set";

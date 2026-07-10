@@ -2,10 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import type { SlideContent, SlideEditOp } from "@/lib/ai/schemas";
+import type { SlideContent, SlideEditOp, DeckPatch } from "@/lib/ai/schemas";
 import { METRIC_GROUPS } from "@/lib/constants";
 import type { DeckOptions } from "@/lib/ppt/generateQbrDeck";
-import { buildDeckManifest, type SlideSection } from "@/lib/ppt/slideManifest";
+import { buildDeckManifest, resolveDeckSequence, type SlideSection } from "@/lib/ppt/slideManifest";
+import {
+  buildReorderItems,
+  computeReorderPatches,
+  isPinnedReorderItem,
+  moveReorderItem,
+  type ReorderItem,
+} from "@/lib/qbr/deckReorder";
 import {
   GUIDED_SECTIONS,
   getStrings,
@@ -1231,6 +1238,148 @@ function SlideEditorPanel({
   );
 }
 
+function SlideOrderPanel({
+  locale,
+  content,
+  busy,
+  onClose,
+  onSave,
+}: {
+  locale: Locale;
+  content: SlideContent;
+  busy?: boolean;
+  onClose: () => void;
+  onSave: (patches: DeckPatch[]) => Promise<void>;
+}) {
+  const s = getStrings(locale);
+  const [items, setItems] = useState<ReorderItem[]>(() => buildReorderItems(content));
+  const [saving, setSaving] = useState(false);
+
+  const labelFor = (item: ReorderItem) => {
+    if (item.kind === "custom") {
+      return content.customSlides?.find((slide) => slide.id === item.slideId)?.title ?? item.slideId;
+    }
+    return s.editor.sections[item.section];
+  };
+
+  async function saveOrder() {
+    const patches = computeReorderPatches(content, items);
+    if (!patches.length) {
+      onClose();
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(patches);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="slide-order-title"
+        className="flex max-h-[85vh] w-full max-w-md flex-col rounded-lg border bg-background shadow-lg"
+      >
+        <div className="border-b px-4 py-3">
+          <h2 id="slide-order-title" className="text-sm font-semibold">
+            {locale === "fr" ? "Réorganiser les diapositives" : "Change slide order"}
+          </h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {locale === "fr"
+              ? "Utilisez les flèches pour déplacer les diapositives. La page titre et la page de clôture restent fixes."
+              : "Use the arrows to move slides. The title and closing slides stay fixed."}
+          </p>
+        </div>
+        <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-3">
+          {items.map((item, index) => {
+            const pinned = isPinnedReorderItem(item);
+            const canMoveUp = !pinned && index > 0 && !isPinnedReorderItem(items[index - 1]);
+            const canMoveDown =
+              !pinned && index < items.length - 1 && !isPinnedReorderItem(items[index + 1]);
+            return (
+              <li
+                key={item.id}
+                className={`flex items-center gap-2 rounded-md border px-2 py-2 text-xs ${
+                  pinned ? "border-dashed bg-muted/40 text-muted-foreground" : "bg-background"
+                }`}
+              >
+                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium">
+                  {index + 1}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {labelFor(item)}
+                  {item.kind === "custom" && (
+                    <span className="ml-1 font-normal text-muted-foreground">
+                      ({locale === "fr" ? "personnalisée" : "custom"})
+                    </span>
+                  )}
+                </span>
+                {pinned ? (
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                    {locale === "fr" ? "Fixe" : "Fixed"}
+                  </span>
+                ) : (
+                  <div className="flex shrink-0 gap-0.5">
+                    <button
+                      type="button"
+                      disabled={busy || saving || !canMoveUp}
+                      onClick={() => setItems((current) => moveReorderItem(current, index, -1))}
+                      className="rounded border px-1.5 py-0.5 hover:bg-accent disabled:opacity-40"
+                      title={locale === "fr" ? "Monter" : "Move up"}
+                      aria-label={locale === "fr" ? "Monter" : "Move up"}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || saving || !canMoveDown}
+                      onClick={() => setItems((current) => moveReorderItem(current, index, 1))}
+                      className="rounded border px-1.5 py-0.5 hover:bg-accent disabled:opacity-40"
+                      title={locale === "fr" ? "Descendre" : "Move down"}
+                      aria-label={locale === "fr" ? "Descendre" : "Move down"}
+                    >
+                      ↓
+                    </button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+        <div className="flex justify-end gap-2 border-t px-4 py-3">
+          <button
+            type="button"
+            disabled={busy || saving}
+            onClick={onClose}
+            className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-50"
+          >
+            {locale === "fr" ? "Annuler" : "Cancel"}
+          </button>
+          <button
+            type="button"
+            disabled={busy || saving}
+            onClick={() => void saveOrder()}
+            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {saving
+              ? locale === "fr"
+                ? "Enregistrement…"
+                : "Saving…"
+              : locale === "fr"
+                ? "Enregistrer l'ordre"
+                : "Save order"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SlideRail({
   progress,
   locale,
@@ -1239,6 +1388,7 @@ function SlideRail({
   onSelect,
   onHideSection,
   onAddSlide,
+  onChangeOrder,
   disabled,
 }: {
   progress: EditorProgress;
@@ -1248,66 +1398,70 @@ function SlideRail({
   onSelect: (key: RailKey) => void;
   onHideSection: (section: GuidedSection) => void;
   onAddSlide: () => void;
+  onChangeOrder: () => void;
   disabled?: boolean;
 }) {
   const s = getStrings(locale);
   const hidden = new Set(content?.hiddenSections ?? []);
+  const deckEntries = content ? resolveDeckSequence(content) : [];
 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-1.5">
-      {GUIDED_SECTIONS.map((section, index) => {
-        if (hidden.has(section)) return null;
-        const key = railKeyForSection(section);
-        const review = getSectionReview(section, content, progress, locale);
-        const confirmed = review.status === "complete";
-        const ready = review.status === "ready";
-        const current = activeRailKey === key;
-        return (
-          <div key={section} className="group relative inline-flex">
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => onSelect(key)}
-              title={`${locale === "fr" ? "Aller à cette diapositive" : "Jump to this slide"} — ${review.status.replace("_", " ")}`}
-              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors hover:ring-1 hover:ring-primary/40 disabled:opacity-50 ${
-                current
-                  ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
-                  : confirmed
-                    ? "border-gdi-green/30 bg-gdi-green/15 text-gdi-green hover:bg-gdi-green/25"
-                    : ready
-                      ? "border-primary/30 bg-primary/5 text-primary"
-                    : "border-border bg-muted text-muted-foreground hover:bg-muted/70"
-              }`}
-            >
-              <span
-                className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${
-                  confirmed ? "bg-gdi-green text-white" : current ? "bg-primary text-primary-foreground" : "bg-background"
-                }`}
-              >
-                {confirmed ? "✓" : index + 1}
-              </span>
-              {s.editor.sections[section]}
-            </button>
-            {section !== "title" && (
+      {deckEntries.map((entry, index) => {
+        if (entry.type === "section") {
+          const section = entry.section as GuidedSection;
+          if (hidden.has(section)) return null;
+          const key = railKeyForSection(section);
+          const review = getSectionReview(section, content, progress, locale);
+          const confirmed = review.status === "complete";
+          const ready = review.status === "ready";
+          const current = activeRailKey === key;
+          return (
+            <div key={section} className="group relative inline-flex">
               <button
                 type="button"
                 disabled={disabled}
-                onClick={() => onHideSection(section)}
-                className="ml-0.5 hidden rounded px-1 text-[10px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:inline"
-                title={locale === "fr" ? "Masquer cette diapositive" : "Hide this slide"}
+                onClick={() => onSelect(key)}
+                title={`${locale === "fr" ? "Aller à cette diapositive" : "Jump to this slide"} — ${review.status.replace("_", " ")}`}
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors hover:ring-1 hover:ring-primary/40 disabled:opacity-50 ${
+                  current
+                    ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
+                    : confirmed
+                      ? "border-gdi-green/30 bg-gdi-green/15 text-gdi-green hover:bg-gdi-green/25"
+                      : ready
+                        ? "border-primary/30 bg-primary/5 text-primary"
+                        : "border-border bg-muted text-muted-foreground hover:bg-muted/70"
+                }`}
               >
-                ⋯
+                <span
+                  className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${
+                    confirmed ? "bg-gdi-green text-white" : current ? "bg-primary text-primary-foreground" : "bg-background"
+                  }`}
+                >
+                  {confirmed ? "✓" : index + 1}
+                </span>
+                {s.editor.sections[section]}
               </button>
-            )}
-          </div>
-        );
-      })}
-      {(content?.customSlides ?? []).map((slide) => {
-        const key = railKeyForCustom(slide.id);
+              {section !== "title" && (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onHideSection(section)}
+                  className="ml-0.5 hidden rounded px-1 text-[10px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:inline"
+                  title={locale === "fr" ? "Masquer cette diapositive" : "Hide this slide"}
+                >
+                  ⋯
+                </button>
+              )}
+            </div>
+          );
+        }
+
+        const key = railKeyForCustom(entry.slide.id);
         const current = activeRailKey === key;
         return (
           <button
-            key={slide.id}
+            key={entry.slide.id}
             type="button"
             disabled={disabled}
             onClick={() => onSelect(key)}
@@ -1315,10 +1469,22 @@ function SlideRail({
               current ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/70"
             }`}
           >
-            + {slide.title}
+            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-background text-[9px]">
+              {index + 1}
+            </span>
+            + {entry.slide.title}
           </button>
         );
       })}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onChangeOrder}
+        className="inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-medium text-muted-foreground hover:bg-muted/70 disabled:opacity-50"
+        title={locale === "fr" ? "Réorganiser toutes les diapositives" : "Reorder all slides"}
+      >
+        {locale === "fr" ? "↕ Ordre" : "↕ Change order"}
+      </button>
       <button
         type="button"
         disabled={disabled}
@@ -1392,6 +1558,7 @@ export default function CollaborateChat({
     initialProgress.guidedMode ? initialProgress.currentSection : null,
   );
   const [scrollToken, setScrollToken] = useState(0);
+  const [slideOrderOpen, setSlideOrderOpen] = useState(false);
 
   const endRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
@@ -1757,15 +1924,21 @@ export default function CollaborateChat({
     }
   }
 
-  async function submitOperations(operations: SlideEditOp[]) {
-    if (operations.length === 0 || busy || formBusy) return;
+  async function submitEdits({
+    operations = [],
+    patches = [],
+  }: {
+    operations?: SlideEditOp[];
+    patches?: DeckPatch[];
+  }) {
+    if ((operations.length === 0 && patches.length === 0) || busy || formBusy) return;
     setFormBusy(true);
     setFormResult(null);
     try {
       const res = await fetch(`/api/qbr/${qbrId}/collaborate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ operations, activeSection: activeSectionParam() }),
+        body: JSON.stringify({ operations, patches, activeSection: activeSectionParam() }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -1792,6 +1965,10 @@ export default function CollaborateChat({
     } finally {
       setFormBusy(false);
     }
+  }
+
+  async function submitOperations(operations: SlideEditOp[]) {
+    await submitEdits({ operations });
   }
 
   function reopenCurrentSection() {
@@ -1897,7 +2074,17 @@ export default function CollaborateChat({
               onSelect={selectRail}
               onHideSection={hideSection}
               onAddSlide={promptAddSlide}
+              onChangeOrder={() => setSlideOrderOpen(true)}
               disabled={sectionBusy}
+            />
+          )}
+          {slideOrderOpen && content && (
+            <SlideOrderPanel
+              locale={uiLocale}
+              content={content}
+              busy={sectionBusy || formBusy}
+              onClose={() => setSlideOrderOpen(false)}
+              onSave={(patches) => submitEdits({ patches })}
             />
           )}
         </div>
