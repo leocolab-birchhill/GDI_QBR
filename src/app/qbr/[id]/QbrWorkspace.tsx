@@ -39,6 +39,12 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
   const [tab, setTab] = useState<Tab>("Overview");
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const clientName: string = qbr.account.clientName;
+  const accountId: string = qbr.account.id;
 
   async function call(label: string, url: string, body?: unknown) {
     setBusy(label);
@@ -63,6 +69,33 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
     }
   }
 
+  async function deleteClient() {
+    if (deleteConfirmName.trim() !== clientName || deleting) return;
+    setDeleting(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/accounts", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: accountId,
+          confirmationName: deleteConfirmName.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage(`Delete failed: ${data.error ?? res.statusText}`);
+        setDeleting(false);
+        return;
+      }
+      router.push("/dashboard");
+      router.refresh();
+    } catch (e) {
+      setMessage(`Delete error: ${(e as Error).message}`);
+      setDeleting(false);
+    }
+  }
+
   const id = qbr.id;
 
   return (
@@ -70,7 +103,7 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">
-            {qbr.account.clientName} — {qbr.quarter} {qbr.year}
+            {clientName} — {qbr.quarter} {qbr.year}
           </h1>
           <p className="text-sm text-muted-foreground">
             VP: {qbr.account.vpOwner?.name ?? "—"} · Director:{" "}
@@ -79,7 +112,22 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
             {fmt(qbr.meetingDate)}
           </p>
         </div>
-        <Badge status={qbr.status}>{qbr.status.replace(/_/g, " ")}</Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge status={qbr.status}>{qbr.status.replace(/_/g, " ")}</Badge>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-red-200 text-red-700 hover:bg-red-50"
+            disabled={!!busy || deleting}
+            onClick={() => {
+              setShowDelete(true);
+              setDeleteConfirmName("");
+              setMessage(null);
+            }}
+          >
+            Delete client
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -187,6 +235,50 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
       </div>
 
       <div>{renderTab(tab, qbr)}</div>
+
+      {showDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-red-700">Delete client</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This permanently deletes <strong>{clientName}</strong> and its BR
+              cycles, decks, messages, surveys, and related records. To confirm,
+              type the exact client name.
+            </p>
+            <input
+              autoFocus
+              className="mt-4 w-full rounded-md border px-3 py-2 text-sm"
+              placeholder={clientName}
+              value={deleteConfirmName}
+              onChange={(e) => setDeleteConfirmName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void deleteClient();
+              }}
+            />
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                disabled={deleting}
+                onClick={() => {
+                  setShowDelete(false);
+                  setDeleteConfirmName("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                disabled={
+                  deleteConfirmName.trim() !== clientName || deleting
+                }
+                onClick={() => void deleteClient()}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                {deleting ? "Deleting…" : "Delete client"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

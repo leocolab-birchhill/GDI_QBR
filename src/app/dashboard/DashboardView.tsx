@@ -12,7 +12,6 @@ import {
   type AuditEntry,
   type DashboardAggregates,
   type DashboardCycle,
-  type EmailHealth,
   type HealthLevel,
   attentionQueue,
   filterCycles,
@@ -56,13 +55,11 @@ export default function DashboardView({
   cycles,
   aggregates,
   audit,
-  emailHealth,
   locale,
 }: {
   cycles: DashboardCycle[];
   aggregates: DashboardAggregates;
   audit: AuditEntry[];
-  emailHealth: EmailHealth;
   locale: Locale;
 }) {
   const s = getStrings(locale).dashboard;
@@ -112,7 +109,6 @@ export default function DashboardView({
       </div>
 
       <SummaryBar aggregates={aggregates} s={s} />
-      <EmailHealthPanel health={emailHealth} s={s} />
 
       <Card>
         <CardHeader className="pb-3">
@@ -218,36 +214,6 @@ function SummaryBar({ aggregates, s }: { aggregates: DashboardAggregates; s: Das
         </Card>
       ))}
     </div>
-  );
-}
-
-function EmailHealthPanel({ health, s }: { health: EmailHealth; s: DashStrings }) {
-  const ok = health.provider === "mock" || health.connected;
-  return (
-    <Card>
-      <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm">
-        <div className="flex flex-wrap items-center gap-4">
-          <span>
-            {s.emailProvider} <strong>{health.provider}</strong>
-          </span>
-          {health.provider === "graph" && (
-            <span className={ok ? "text-gdi-green" : "text-amber-600"}>
-              {health.connected ? s.connected(health.email ?? "mailbox") : s.mailboxNotConnected}
-            </span>
-          )}
-          {health.provider === "graph" && !health.configured && (
-            <span className="text-amber-600">{s.graphNotConfigured}</span>
-          )}
-        </div>
-        {health.provider === "graph" && !health.connected && (
-          <Link href="/admin/settings">
-            <Button type="button" size="sm" variant="outline">
-              {s.connectMailbox}
-            </Button>
-          </Link>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 

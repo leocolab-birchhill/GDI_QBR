@@ -1,14 +1,8 @@
 import { prisma } from "@/lib/db";
-import { env } from "@/lib/env";
-import {
-  getConnectedAccount,
-  isGraphConfigured,
-} from "@/lib/email/providers/graphAuth";
 import {
   buildAggregates,
   toDashboardCycle,
   type AuditEntry,
-  type EmailHealth,
 } from "@/lib/qbr/dashboard";
 import { getServerUiLocale } from "@/lib/i18n/serverLocale";
 import { getStrings } from "@/lib/i18n";
@@ -17,7 +11,7 @@ import DashboardView from "./DashboardView";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [rawCycles, rawAudit, graphAcct] = await Promise.all([
+  const [rawCycles, rawAudit] = await Promise.all([
     prisma.qbrCycle.findMany({
       orderBy: { updatedAt: "desc" },
       include: {
@@ -44,7 +38,6 @@ export default async function DashboardPage() {
       },
     }),
     prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 12 }),
-    getConnectedAccount(),
   ]);
 
   const locale = getServerUiLocale();
@@ -59,15 +52,6 @@ export default async function DashboardPage() {
     actorEmail: e.actorEmail,
     createdAt: e.createdAt.toISOString(),
   }));
-
-  const emailHealth: EmailHealth = {
-    provider: env.EMAIL_PROVIDER,
-    configured: isGraphConfigured(),
-    connected: Boolean(graphAcct?.refreshToken),
-    // Show the QBR robot mailbox the system operates as, not the personal
-    // account used to authorize the Graph connection.
-    email: env.QBR_MAILBOX || graphAcct?.email || null,
-  };
 
   if (cycles.length === 0) {
     return (
@@ -91,7 +75,6 @@ export default async function DashboardPage() {
       cycles={cycles}
       aggregates={aggregates}
       audit={audit}
-      emailHealth={emailHealth}
       locale={locale}
     />
   );
