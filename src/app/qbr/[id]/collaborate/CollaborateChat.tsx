@@ -1422,6 +1422,8 @@ function SlideRail({
   onAddSlide,
   onChangeOrder,
   disabled,
+  open,
+  setOpen,
 }: {
   progress: EditorProgress;
   locale: Locale;
@@ -1432,109 +1434,161 @@ function SlideRail({
   onAddSlide: () => void;
   onChangeOrder: () => void;
   disabled?: boolean;
+  open: boolean;
+  setOpen: (open: boolean) => void;
 }) {
   const s = getStrings(locale);
   const hidden = new Set(content?.hiddenSections ?? []);
   const deckEntries = content ? resolveDeckSequence(content) : [];
+  const visibleEntries = deckEntries.filter((entry) => entry.type !== "section" || !hidden.has(entry.section as GuidedSection));
+  const currentIndex = visibleEntries.findIndex((entry) => {
+    if (entry.type === "section") return railKeyForSection(entry.section as GuidedSection) === activeRailKey;
+    return railKeyForCustom(entry.slide.id) === activeRailKey;
+  });
+  const currentEntry = currentIndex >= 0 ? visibleEntries[currentIndex] : visibleEntries[0];
+  const currentLabel = currentEntry
+    ? currentEntry.type === "section"
+      ? s.editor.sections[currentEntry.section as GuidedSection]
+      : currentEntry.slide.title
+    : locale === "fr"
+      ? "Diapositive"
+      : "Slide";
+  const goToEntry = (index: number) => {
+    const entry = visibleEntries[index];
+    if (!entry) return;
+    onSelect(entry.type === "section" ? railKeyForSection(entry.section as GuidedSection) : railKeyForCustom(entry.slide.id));
+  };
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-1.5">
-      {deckEntries.map((entry, index) => {
-        if (entry.type === "section") {
-          const section = entry.section as GuidedSection;
-          if (hidden.has(section)) return null;
-          const key = railKeyForSection(section);
-          const review = getSectionReview(section, content, progress, locale);
-          const confirmed = review.status === "complete";
-          const ready = review.status === "ready";
-          const current = activeRailKey === key;
-          return (
-            <div key={section} className="group relative inline-flex">
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onSelect(key)}
-                title={`${locale === "fr" ? "Aller à cette diapositive" : "Jump to this slide"} — ${review.status.replace("_", " ")}`}
-                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors hover:ring-1 hover:ring-primary/40 disabled:opacity-50 ${
-                  current
-                    ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
-                    : confirmed
-                      ? "border-gdi-green/30 bg-gdi-green/15 text-gdi-green hover:bg-gdi-green/25"
-                      : ready
-                        ? "border-primary/30 bg-primary/5 text-primary"
-                        : "border-border bg-muted text-muted-foreground hover:bg-muted/70"
-                }`}
-              >
-                <span
-                  className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${
-                    confirmed ? "bg-gdi-green text-white" : current ? "bg-primary text-primary-foreground" : "bg-background"
-                  }`}
-                >
-                  {confirmed ? "✓" : index + 1}
-                </span>
-                {s.editor.sections[section]}
-              </button>
-              {section !== "title" && (
+    <div className="mt-3 rounded-lg border bg-muted/20">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5">
+        <button
+          type="button"
+          onClick={() => goToEntry(currentIndex - 1)}
+          disabled={disabled || currentIndex <= 0}
+          className="inline-flex h-7 items-center rounded-md border bg-background px-2 text-[10px] font-medium text-muted-foreground hover:bg-accent disabled:opacity-40"
+          title={locale === "fr" ? "Diapositive précédente" : "Previous slide"}
+        >
+          ‹ {locale === "fr" ? "Préc." : "Prev"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="min-w-0 flex-1 truncate rounded-md px-2 py-1 text-left text-[11px] font-semibold text-foreground hover:bg-background"
+          aria-expanded={open}
+        >
+          {locale === "fr" ? "Diapositive" : "Slide"}: {currentIndex >= 0 ? currentIndex + 1 : "—"}/{visibleEntries.length || "—"} · {currentLabel}
+          <span className="ml-2 text-muted-foreground">{open ? "▴" : "▾"}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => goToEntry(currentIndex + 1)}
+          disabled={disabled || currentIndex < 0 || currentIndex >= visibleEntries.length - 1}
+          className="inline-flex h-7 items-center rounded-md border bg-background px-2 text-[10px] font-medium text-muted-foreground hover:bg-accent disabled:opacity-40"
+          title={locale === "fr" ? "Diapositive suivante" : "Next slide"}
+        >
+          {locale === "fr" ? "Suiv." : "Next"} ›
+        </button>
+      </div>
+      {open && (
+        <div className="flex flex-wrap items-center gap-1.5 border-t px-2 py-2">
+          {visibleEntries.map((entry, index) => {
+            if (entry.type === "section") {
+              const section = entry.section as GuidedSection;
+              const key = railKeyForSection(section);
+              const review = getSectionReview(section, content, progress, locale);
+              const confirmed = review.status === "complete";
+              const ready = review.status === "ready";
+              const current = activeRailKey === key;
+              return (
+                <div key={section} className="group relative inline-flex">
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onSelect(key)}
+                    title={`${locale === "fr" ? "Aller à cette diapositive" : "Jump to this slide"} — ${review.status.replace("_", " ")}`}
+                    className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors hover:ring-1 hover:ring-primary/40 disabled:opacity-50 ${
+                      current
+                        ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
+                        : confirmed
+                          ? "border-gdi-green/30 bg-gdi-green/15 text-gdi-green hover:bg-gdi-green/25"
+                          : ready
+                            ? "border-primary/30 bg-primary/5 text-primary"
+                            : "border-border bg-muted text-muted-foreground hover:bg-muted/70"
+                    }`}
+                  >
+                    <span
+                      className={`inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${
+                        confirmed ? "bg-gdi-green text-white" : current ? "bg-primary text-primary-foreground" : "bg-background"
+                      }`}
+                    >
+                      {confirmed ? "✓" : index + 1}
+                    </span>
+                    {s.editor.sections[section]}
+                  </button>
+                  {section !== "title" && (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => onDeleteSlide({ section, title: s.editor.sections[section] })}
+                      className="ml-0.5 hidden rounded px-1 text-[10px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:inline"
+                      title={locale === "fr" ? "Supprimer cette diapositive" : "Delete this slide"}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              );
+            }
+
+            const key = railKeyForCustom(entry.slide.id);
+            const current = activeRailKey === key;
+            return (
+              <div key={entry.slide.id} className="group relative inline-flex">
                 <button
                   type="button"
                   disabled={disabled}
-                  onClick={() => onDeleteSlide({ section, title: s.editor.sections[section] })}
+                  onClick={() => onSelect(key)}
+                  className={`inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-[10px] font-medium ${
+                    current ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/70"
+                  }`}
+                >
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-background text-[9px]">
+                    {index + 1}
+                  </span>
+                  + {entry.slide.title}
+                </button>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onDeleteSlide({ slideId: entry.slide.id, title: entry.slide.title })}
                   className="ml-0.5 hidden rounded px-1 text-[10px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:inline"
                   title={locale === "fr" ? "Supprimer cette diapositive" : "Delete this slide"}
                 >
                   ×
                 </button>
-              )}
-            </div>
-          );
-        }
-
-        const key = railKeyForCustom(entry.slide.id);
-        const current = activeRailKey === key;
-        return (
-          <div key={entry.slide.id} className="group relative inline-flex">
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => onSelect(key)}
-              className={`inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-[10px] font-medium ${
-                current ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/70"
-              }`}
-            >
-              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-background text-[9px]">
-                {index + 1}
-              </span>
-              + {entry.slide.title}
-            </button>
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => onDeleteSlide({ slideId: entry.slide.id, title: entry.slide.title })}
-              className="ml-0.5 hidden rounded px-1 text-[10px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:inline"
-              title={locale === "fr" ? "Supprimer cette diapositive" : "Delete this slide"}
-            >
-              ×
-            </button>
-          </div>
-        );
-      })}
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onChangeOrder}
-        className="inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-medium text-muted-foreground hover:bg-muted/70 disabled:opacity-50"
-        title={locale === "fr" ? "Réorganiser toutes les diapositives" : "Reorder all slides"}
-      >
-        {locale === "fr" ? "↕ Ordre" : "↕ Change order"}
-      </button>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onAddSlide}
-        className="inline-flex items-center rounded-full border border-dashed px-2.5 py-1 text-[10px] font-medium text-primary hover:bg-primary/5 disabled:opacity-50"
-      >
-        {locale === "fr" ? "+ Ajouter" : "+ Add slide"}
-      </button>
+              </div>
+            );
+          })}
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onChangeOrder}
+            className="inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-medium text-muted-foreground hover:bg-muted/70 disabled:opacity-50"
+            title={locale === "fr" ? "Réorganiser toutes les diapositives" : "Reorder all slides"}
+          >
+            {locale === "fr" ? "↕ Ordre" : "↕ Change order"}
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onAddSlide}
+            className="inline-flex items-center rounded-full border border-dashed px-2.5 py-1 text-[10px] font-medium text-primary hover:bg-primary/5 disabled:opacity-50"
+          >
+            {locale === "fr" ? "+ Ajouter" : "+ Add slide"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1602,6 +1656,7 @@ export default function CollaborateChat({
   );
   const [scrollToken, setScrollToken] = useState(0);
   const [slideOrderOpen, setSlideOrderOpen] = useState(false);
+  const [slideRailOpen, setSlideRailOpen] = useState(false);
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [previewWidth, setPreviewWidth] = useState(44);
@@ -2230,7 +2285,7 @@ export default function CollaborateChat({
               </Link>
             </div>
           </div>
-          {editorProgress.guidedMode && (
+          {activeTab === "editor" && editorProgress.guidedMode && (
             <SlideRail
               progress={editorProgress}
               locale={uiLocale}
@@ -2241,6 +2296,8 @@ export default function CollaborateChat({
               onAddSlide={promptAddSlide}
               onChangeOrder={() => setSlideOrderOpen(true)}
               disabled={sectionBusy}
+              open={slideRailOpen}
+              setOpen={setSlideRailOpen}
             />
           )}
           {slideOrderOpen && content && (
@@ -2263,7 +2320,10 @@ export default function CollaborateChat({
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab("activity")}
+                onClick={() => {
+                  setActiveTab("activity");
+                  setSlideOrderOpen(false);
+                }}
                 className={`rounded-md px-3 py-1.5 ${activeTab === "activity" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
               >
                 {uiLocale === "fr" ? "Activité" : "Activity"}
