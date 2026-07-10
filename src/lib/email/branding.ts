@@ -15,7 +15,10 @@ export function editorUrl(qbrCycleId: string): string {
 }
 
 export function escapeHtml(s: string): string {
-  return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c] || c);
+  return s.replace(
+    /[&<>]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c] || c,
+  );
 }
 
 /** GDI logo block for the top of outbound HTML emails. */
@@ -27,12 +30,16 @@ export function emailLogoBlock(): string {
 }
 
 /** Standard HTML email shell — Lato, logo header, GDI brand colors. */
-export function wrapEmailHtml(title: string, body: string, locale?: string | null): string {
+export function wrapEmailHtml(
+  title: string,
+  body: string,
+  locale?: string | null,
+): string {
   const lang = locale === "en" ? "en" : "fr";
   const footer =
     lang === "fr"
-      ? "Envoyé par GDI QBR OS — répondez à ce courriel pour mettre à jour votre QBR."
-      : "Sent by GDI QBR OS — reply to this email to update your QBR.";
+      ? "Envoyé par GDI BR OS — répondez à ce courriel pour mettre à jour votre BR."
+      : "Sent by GDI BR OS — reply to this email to update your BR.";
   return `<!doctype html>
 <html lang="${lang}">
 <head>
@@ -56,7 +63,10 @@ export function emailButtonStyle(): string {
 }
 
 /** Live deck editor CTA — hyperlink button, no raw URL in the HTML body. */
-export function emailEditorLinkBlock(url: string, locale?: string | null): string {
+export function emailEditorLinkBlock(
+  url: string,
+  locale?: string | null,
+): string {
   const fr = locale === "fr" || !locale;
   const title = fr ? "Éditeur collaboratif" : "Live deck editor";
   const desc = fr

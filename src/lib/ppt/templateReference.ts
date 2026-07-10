@@ -1,15 +1,15 @@
 /**
- * Structured reference distilled from the approved client QBR template
+ * Structured reference distilled from the approved client BR template
  * (templates/qbr_brand_template.pptx). This is injected into the OpenAI deck
  * drafting call so generated content mirrors the house structure, tone, and
  * level of detail. It is a STYLE/STRUCTURE reference only — never copy its
  * specific facts/numbers into a real client's deck.
  */
 export const QBR_TEMPLATE_REFERENCE = `
-APPROVED QBR DECK STRUCTURE (client-facing, exactly 7 slides — no internal slides):
+APPROVED BR DECK STRUCTURE (client-facing, exactly 7 slides — no internal slides):
 
 1) TITLE
-   [Client Name] | [Quarter Year] | "Quarterly Business Review" | [Month Year]
+   [Client Name] | [Quarter Year] | "Business Review" | [Month Year]
 
 2) AGENDA (numbered, matching slide order)
    3  OPEN FOLLOW-UPS & PROGRESS

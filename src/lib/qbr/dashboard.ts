@@ -75,7 +75,11 @@ export interface EmailHealth {
   email: string | null;
 }
 
-export type AttentionFilter = "all" | "needs_attention" | "vp_review" | "meeting_this_week";
+export type AttentionFilter =
+  | "all"
+  | "needs_attention"
+  | "vp_review"
+  | "meeting_this_week";
 
 const CLOSED_STATUSES = new Set(["CLOSED", "SURVEY_SENT", "PRESENTED"]);
 
@@ -99,7 +103,9 @@ type RawCycle = {
   emailThreads: { messages: { receivedAt: Date }[] }[];
 };
 
-export function daysUntil(date: Date | string | null | undefined): number | null {
+export function daysUntil(
+  date: Date | string | null | undefined,
+): number | null {
   if (!date) return null;
   const d = typeof date === "string" ? new Date(date) : date;
   if (Number.isNaN(d.getTime())) return null;
@@ -110,7 +116,9 @@ export function daysUntil(date: Date | string | null | undefined): number | null
   return Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-export function daysSince(date: Date | string | null | undefined): number | null {
+export function daysSince(
+  date: Date | string | null | undefined,
+): number | null {
   if (!date) return null;
   const d = typeof date === "string" ? new Date(date) : date;
   if (Number.isNaN(d.getTime())) return null;
@@ -122,7 +130,10 @@ export function daysSince(date: Date | string | null | undefined): number | null
 }
 
 /** Map days-until-meeting to the reminder cadence milestone. */
-export function reminderMilestone(days: number | null, locale?: Locale): string | null {
+export function reminderMilestone(
+  days: number | null,
+  locale: Locale = "en",
+): string | null {
   if (days === null) return null;
   const m = getStrings(locale).dashboard.milestones;
   if (days < 0) return m.postMeeting;
@@ -187,10 +198,18 @@ export function buildAttention(
     });
   }
   if (days !== null && days >= 0 && days <= 30 && !hasDraft && !isClosed) {
-    items.push({ kind: "no_draft", label: t.noDraft, severity: days <= 14 ? "high" : "medium" });
+    items.push({
+      kind: "no_draft",
+      label: t.noDraft,
+      severity: days <= 14 ? "high" : "medium",
+    });
   }
   if (days !== null && days < 0 && !isClosed) {
-    items.push({ kind: "meeting_overdue", label: t.meetingOverdue, severity: "high" });
+    items.push({
+      kind: "meeting_overdue",
+      label: t.meetingOverdue,
+      severity: "high",
+    });
   }
   if (staleDays !== null && staleDays >= 14 && !isClosed) {
     items.push({
@@ -200,7 +219,11 @@ export function buildAttention(
     });
   }
 
-  const rank: Record<AttentionSeverity, number> = { high: 0, medium: 1, low: 2 };
+  const rank: Record<AttentionSeverity, number> = {
+    high: 0,
+    medium: 1,
+    low: 2,
+  };
   return items.sort((a, b) => rank[a.severity] - rank[b.severity]);
 }
 
@@ -215,7 +238,10 @@ export function computeHealth(
   return "green";
 }
 
-export function toDashboardCycle(cycle: RawCycle, locale?: Locale): DashboardCycle {
+export function toDashboardCycle(
+  cycle: RawCycle,
+  locale?: Locale,
+): DashboardCycle {
   const days = daysUntil(cycle.meetingDate);
   const lastEmail = lastEmailAt(cycle);
   const stale = lastEmail ? daysSince(lastEmail) : null;
@@ -255,11 +281,16 @@ export function buildAggregates(cycles: DashboardCycle[]): DashboardAggregates {
     active: active.length,
     needsVpReview: active.filter((c) => c.hasDraft && !c.vpApproved).length,
     meetingsThisWeek: active.filter(
-      (c) => c.daysUntilMeeting !== null && c.daysUntilMeeting >= 0 && c.daysUntilMeeting <= 7,
+      (c) =>
+        c.daysUntilMeeting !== null &&
+        c.daysUntilMeeting >= 0 &&
+        c.daysUntilMeeting <= 7,
     ).length,
     openMissingInfo: active.reduce((n, c) => n + c.openMissingInfo, 0),
     unconfirmedMetrics: active.reduce((n, c) => n + c.unconfirmedMetrics, 0),
-    highAttention: active.filter((c) => c.attention.some((a) => a.severity === "high")).length,
+    highAttention: active.filter((c) =>
+      c.attention.some((a) => a.severity === "high"),
+    ).length,
   };
 }
 
@@ -277,11 +308,17 @@ export function filterCycles(
     if (q && !c.clientName.toLowerCase().includes(q)) return false;
     if (opts.status && c.status !== opts.status) return false;
     if (opts.vpId && c.vpOwner?.id !== opts.vpId) return false;
-    if (opts.attention === "needs_attention" && c.attention.length === 0) return false;
-    if (opts.attention === "vp_review" && !(c.hasDraft && !c.vpApproved)) return false;
+    if (opts.attention === "needs_attention" && c.attention.length === 0)
+      return false;
+    if (opts.attention === "vp_review" && !(c.hasDraft && !c.vpApproved))
+      return false;
     if (
       opts.attention === "meeting_this_week" &&
-      !(c.daysUntilMeeting !== null && c.daysUntilMeeting >= 0 && c.daysUntilMeeting <= 7)
+      !(
+        c.daysUntilMeeting !== null &&
+        c.daysUntilMeeting >= 0 &&
+        c.daysUntilMeeting <= 7
+      )
     ) {
       return false;
     }

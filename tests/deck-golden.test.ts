@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { generateQbrDeck, QBR_SLIDE_COUNT, type DeckOptions } from "@/lib/ppt/generateQbrDeck";
+import {
+  generateQbrDeck,
+  QBR_SLIDE_COUNT,
+  type DeckOptions,
+} from "@/lib/ppt/generateQbrDeck";
 import type { SlideContent } from "@/lib/ai/schemas";
 import { TO_CONFIRM } from "@/lib/constants";
 
@@ -11,22 +15,58 @@ import { TO_CONFIRM } from "@/lib/constants";
  */
 
 const fixture: SlideContent = {
-  title: { clientName: "McGill University", quarterYear: "Q1 2026", meetingMonthYear: "June 2026" },
-  agenda: ["OPEN FOLLOW-UPS & PROGRESS", "PRIORITY ITEMS", "DASHBOARD", "WHAT'S NEXT", "QUESTIONS & DISCUSSION"],
+  title: {
+    clientName: "McGill University",
+    quarterYear: "Q1 2026",
+    meetingMonthYear: "June 2026",
+  },
+  agenda: [
+    "OPEN FOLLOW-UPS & PROGRESS",
+    "PRIORITY ITEMS",
+    "DASHBOARD",
+    "WHAT'S NEXT",
+    "QUESTIONS & DISCUSSION",
+  ],
   followUps: [
-    { number: 1, action: "Improve dock access", status: "In Progress", owner: "Marie", dueDate: "Jun 1, 2026" },
-    { number: 2, action: "Update safety signage", status: "Open", owner: "Luc", dueDate: "Jul 15, 2026" },
+    {
+      number: 1,
+      action: "Improve dock access",
+      status: "In Progress",
+      owner: "Marie",
+      dueDate: "Jun 1, 2026",
+    },
+    {
+      number: 2,
+      action: "Update safety signage",
+      status: "Open",
+      owner: "Luc",
+      dueDate: "Jul 15, 2026",
+    },
   ],
   priorityItems: [
-    { number: 1, title: "Parking access", explanation: "Recurring difficulty accessing the loading dock." },
-    { number: 2, title: "Night cleaning window", explanation: "Adjust schedule to reduce tenant disruption." },
+    {
+      number: 1,
+      title: "Parking access",
+      explanation: "Recurring difficulty accessing the loading dock.",
+    },
+    {
+      number: 2,
+      title: "Night cleaning window",
+      explanation: "Adjust schedule to reduce tenant disruption.",
+    },
   ],
   dashboard: {
     healthAndSafety: [{ label: "Injuries reported", value: "0" }],
     operational: [{ label: "Average inspection score", value: "92%" }],
     financial: [{ label: "Outstanding invoices", value: TO_CONFIRM }],
   },
-  whatsNext: [{ number: 1, title: "Window washing proposal", detail: "GDI will submit the proposal in June." }],
+  whatsNext: [
+    {
+      number: 1,
+      title: "Window washing proposal",
+      detail: "GDI will submit the proposal in June.",
+    },
+  ],
 };
 
 const options: DeckOptions = {
@@ -70,7 +110,7 @@ describe("deck golden (structural)", () => {
 
     // Key content labels are present.
     expect(text).toContain("McGill University");
-    expect(text).toContain("Quarterly Business Review");
+    expect(text).toContain("Business Review");
     expect(text).toContain("Parking access");
     expect(text).toContain("Window washing proposal");
     expect(text).toContain("Injuries reported");

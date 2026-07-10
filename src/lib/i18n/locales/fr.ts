@@ -4,7 +4,7 @@ export const fr = {
   localeTag: "fr-CA",
   toConfirm: "À confirmer",
   deck: {
-    titleHeading: "Revue trimestrielle des affaires",
+    titleHeading: "Revue d’affaires",
     agendaHeading: "ORDRE DU JOUR",
     agendaHeadingCont: "ORDRE DU JOUR (suite)",
     agendaItems: [
@@ -16,7 +16,13 @@ export const fr = {
     ],
     followUpsHeading: "SUIVI DES ENGAGEMENTS ET PROGRÈS",
     followUpsHeadingCont: "SUIVI DES ENGAGEMENTS ET PROGRÈS (suite)",
-    followUpsHeaders: ["#", "Action convenue", "Statut", "Responsable", "Échéance"],
+    followUpsHeaders: [
+      "#",
+      "Action convenue",
+      "Statut",
+      "Responsable",
+      "Échéance",
+    ],
     followUpsEmpty: ["—", "Aucun engagement en cours"],
     prioritiesHeading: "ÉLÉMENTS PRIORITAIRES",
     prioritiesHeadingCont: "ÉLÉMENTS PRIORITAIRES (suite)",
@@ -32,7 +38,7 @@ export const fr = {
     whatsNextHeading: "PROCHAINES ÉTAPES",
     whatsNextHeadingCont: "PROCHAINES ÉTAPES (suite)",
     whatsNextEmpty: "Éléments à venir à confirmer.",
-    questionsHeading: "QUESTIONS?",
+    questionsHeading: "DES QUESTIONS ?",
     questionsThanks: "Merci!",
     blurbs: {
       followUps:
@@ -47,7 +53,7 @@ export const fr = {
   },
   editor: {
     welcome:
-      "Bonjour! Je suis votre éditeur de présentation QBR. Nous allons parcourir chaque diapositive ensemble. Décrivez vos modifications en langage courant et je mettrai à jour la présentation.\n\nPour commencer, confirmez les informations de la diapositive titre ou indiquez les changements souhaités.",
+      "Bonjour! Je suis votre éditeur de présentation BR. Nous allons parcourir chaque diapositive ensemble. Décrivez vos modifications en langage courant et je mettrai à jour la présentation.\n\nPour commencer, confirmez les informations de la diapositive titre ou indiquez les changements souhaités.",
     guidedIntro: (section: string, prompt: string) =>
       `**Diapositive : ${section}**\n\n${prompt}\n\nVous pouvez ajouter, modifier, supprimer ou confirmer le contenu. Dites « confirmer » pour passer à la suivante.`,
     sections: {
@@ -60,17 +66,23 @@ export const fr = {
       questions: "Questions",
     },
     prompts: {
-      title: "Vérifiez le nom du client, le trimestre et la date de la réunion. Souhaitez-vous modifier quelque chose?",
-      agenda: "Souhaitez-vous ajouter, retirer ou réorganiser des sections de l'ordre du jour?",
-      followUps: "Ajoutez, modifiez ou supprimez des engagements. Indiquez l'action, le statut, le responsable et l'échéance.",
-      priorities: "Ajoutez ou modifiez les 2 à 3 éléments prioritaires de ce trimestre.",
-      dashboard: "Ajoutez ou mettez à jour les indicateurs du tableau de bord (santé et sécurité, opérationnel, financier).",
+      title:
+        "Vérifiez le nom du client, le trimestre et la date de la réunion. Souhaitez-vous modifier quelque chose?",
+      agenda:
+        "Souhaitez-vous ajouter, retirer ou réorganiser des sections de l'ordre du jour?",
+      followUps:
+        "Ajoutez, modifiez ou supprimez des engagements. Indiquez l'action, le statut, le responsable et l'échéance.",
+      priorities:
+        "Ajoutez ou modifiez les 2 à 3 éléments prioritaires de ce trimestre.",
+      dashboard:
+        "Ajoutez ou mettez à jour les indicateurs du tableau de bord (santé et sécurité, opérationnel, financier).",
       whatsNext: "Ajoutez les prochaines étapes et initiatives planifiées.",
       questions: "Confirmez cette diapositive de clôture ou ajoutez des notes.",
     },
     confirm: "Confirmer et continuer",
     confirmed: (section: string) => `✓ ${section} confirmé.`,
-    allConfirmed: "Toutes les diapositives sont confirmées! Votre QBR est prêt à être révisé ou téléchargé.",
+    allConfirmed:
+      "Toutes les diapositives sont confirmées! Votre BR est prêt à être révisé ou téléchargé.",
     languageToggle: "English",
     languageLabel: "Français",
     siteLanguage: {
@@ -97,7 +109,8 @@ export const fr = {
     latestDeckVersion: (v: number) => `Dernière version : v${v}`,
     downloadLatestDeck: "Télécharger la dernière version",
     downloadDeck: (name: string, v: number) => `⬇ Télécharger ${name} (v${v})`,
-    editingSlide: (current: number, total: number) => `Modification de la diapositive ${current} sur ${total}`,
+    editingSlide: (current: number, total: number) =>
+      `Modification de la diapositive ${current} sur ${total}`,
     slideTitles: {
       title: "Titre",
       agenda: "Ordre du jour",
@@ -117,13 +130,20 @@ export const fr = {
       questions: "Modifier la diapositive de clôture",
     },
     formHelpers: {
-      title: "Mettez à jour le nom du client et les dates de réunion affichées sur la diapositive titre.",
-      agenda: "Mettez à jour les sections de l'ordre du jour affichées sur cette diapositive.",
-      followUps: "Mettez à jour les engagements affichés sur cette diapositive.",
-      priorities: "Mettez à jour les éléments prioritaires affichés sur cette diapositive.",
-      dashboard: "Mettez à jour les indicateurs du tableau de bord affichés sur cette diapositive.",
-      whatsNext: "Mettez à jour les éléments à venir affichés sur cette diapositive.",
-      questions: "Ajoutez une note de clôture optionnelle pour cette diapositive.",
+      title:
+        "Mettez à jour le nom du client et les dates de réunion affichées sur la diapositive titre.",
+      agenda:
+        "Mettez à jour les sections de l'ordre du jour affichées sur cette diapositive.",
+      followUps:
+        "Mettez à jour les engagements affichés sur cette diapositive.",
+      priorities:
+        "Mettez à jour les éléments prioritaires affichés sur cette diapositive.",
+      dashboard:
+        "Mettez à jour les indicateurs du tableau de bord affichés sur cette diapositive.",
+      whatsNext:
+        "Mettez à jour les éléments à venir affichés sur cette diapositive.",
+      questions:
+        "Ajoutez une note de clôture optionnelle pour cette diapositive.",
     },
     slideStatus: {
       inProgress: "En cours",
@@ -138,7 +158,8 @@ export const fr = {
     addFollowUp: "+ Ajouter un engagement",
     assistantSuggestions: "Suggestions de l'assistant",
     askAssistant: "Demander à l'assistant",
-    askAssistantHelper: "Utilisez le clavardage pour les modifications groupées ou celles plus faciles à décrire en mots.",
+    askAssistantHelper:
+      "Utilisez le clavardage pour les modifications groupées ou celles plus faciles à décrire en mots.",
     slideChatPlaceholder: "Décrivez une modification à cette diapositive…",
     chatHistory: "Historique du clavardage",
     tableColumns: {
@@ -152,16 +173,34 @@ export const fr = {
     suggestionChips: {
       followUps: [
         "Ajouter 2 à 3 engagements prioritaires",
-        'Définir les responsables manquants à « À confirmer »',
-        "Définir les échéances manquantes à la prochaine QBR",
+        "Définir les responsables manquants à « À confirmer »",
+        "Définir les échéances manquantes à la prochaine BR",
         "Marquer les éléments complétés comme fermés",
       ],
-      title: ["Changer la date de réunion à <date>", "Mettre à jour le nom du client à <nom>"],
-      agenda: ["Réorganiser l'ordre du jour pour que <section> précède <section>", "Retirer <section> de l'ordre du jour"],
-      priorities: ["Ajouter une priorité : <titre> - <pourquoi c'est important>", "Réécrire la priorité <nom> pour dire <nouvelle formulation>"],
-      dashboard: ["Définir <indicateur> à <valeur>", "Ajouter l'indicateur <indicateur> sous <groupe> avec la valeur <valeur>"],
-      whatsNext: ["Ajouter un élément : <titre> - <détail>", "Retirer l'élément à venir <nom>"],
-      questions: ["Ajouter une note de clôture : <note>", "Cette diapositive de clôture convient"],
+      title: [
+        "Changer la date de réunion à <date>",
+        "Mettre à jour le nom du client à <nom>",
+      ],
+      agenda: [
+        "Réorganiser l'ordre du jour pour que <section> précède <section>",
+        "Retirer <section> de l'ordre du jour",
+      ],
+      priorities: [
+        "Ajouter une priorité : <titre> - <pourquoi c'est important>",
+        "Réécrire la priorité <nom> pour dire <nouvelle formulation>",
+      ],
+      dashboard: [
+        "Définir <indicateur> à <valeur>",
+        "Ajouter l'indicateur <indicateur> sous <groupe> avec la valeur <valeur>",
+      ],
+      whatsNext: [
+        "Ajouter un élément : <titre> - <détail>",
+        "Retirer l'élément à venir <nom>",
+      ],
+      questions: [
+        "Ajouter une note de clôture : <note>",
+        "Cette diapositive de clôture convient",
+      ],
     },
     basicMode:
       "Mode édition de base. Aucune clé OpenAI configurée — l'éditeur utilise la correspondance par mots-clés. Configurez OPENAI_API_KEY pour l'édition en langage naturel.",
@@ -175,7 +214,7 @@ export const fr = {
         "Mettre à jour les indicateurs, priorités, prochaines étapes et engagements",
         "Ajouter ou retirer des éléments, reformuler le texte, changer le statut",
         "Masquer des diapositives intégrées, ajouter des diapositives personnalisées et masquer des sections du tableau de bord",
-        "Définir les dates de réunion (cette QBR et la suivante)",
+        "Définir les dates de réunion (cette BR et la suivante)",
         "Activer les numéros de page, le pied de page et une étiquette de titre",
       ],
       cantItems: [
@@ -186,10 +225,11 @@ export const fr = {
     },
   },
   create: {
-    title: "Créer un nouveau client / QBR",
-    subtitle: "Configurez un compte client et générez une présentation QBR vierge.",
+    title: "Créer un nouveau client / BR",
+    subtitle:
+      "Configurez un compte client et générez une présentation BR vierge.",
     clientName: "Nom du client",
-    targetDate: "Date cible de la QBR",
+    targetDate: "Date cible de la BR",
     quarter: "Trimestre",
     year: "Année",
     owners: "Propriétaire / parties prenantes",
@@ -200,34 +240,38 @@ export const fr = {
     languageEn: "English",
     metadata: "Métadonnées (optionnel)",
     metadataHint: "Secteur, notes, etc.",
-    submit: "Créer et générer la QBR",
+    submit: "Créer et générer la BR",
     existingClient: "Client existant",
     selectClient: "Sélectionner un client…",
-    newBlankQbr: "Nouvelle QBR vierge pour ce client",
+    newBlankQbr: "Nouvelle BR vierge pour ce client",
     or: "ou",
     createNewClient: "Créer un nouveau client",
     success: (name: string, q: string, y: number) =>
-      `QBR vierge créée pour ${name} — ${q} ${y}. Redirection vers l'éditeur…`,
+      `BR vierge créée pour ${name} — ${q} ${y}. Redirection vers l'éditeur…`,
     error: "Erreur lors de la création. Veuillez réessayer.",
     wizard: {
-      heading: "Démarrer une présentation QBR",
-      subtitle: "Sélectionnez un client existant ou créez-en un nouveau, puis ajoutez le logo du client avant d'ouvrir l'éditeur.",
+      heading: "Démarrer une présentation BR",
+      subtitle:
+        "Sélectionnez un client existant ou créez-en un nouveau, puis ajoutez le logo du client avant d'ouvrir l'éditeur.",
       chooseClient: "Sélectionner un client",
       chooseClientHint: "Choisissez un compte existant.",
       newClientCta: "Créer un nouveau client",
       selectClientCta: "Sélectionner un client existant",
       actionTitle: "Que souhaitez-vous faire ?",
-      openLastSaved: "Ouvrir la dernière QBR enregistrée",
+      openLastSaved: "Ouvrir la dernière BR enregistrée",
       openLastSavedHint: (q: string, y: number, v: number | null) =>
         v != null ? `${q} ${y} · dernière version v${v}` : `${q} ${y}`,
-      generateFresh: "Générer une nouvelle QBR",
-      generateFreshHint: "Démarrer une nouvelle présentation vierge pour ce client.",
-      noSavedQbr: "Aucune QBR enregistrée pour ce client — nous en démarrerons une nouvelle.",
-      freshQuarterLabel: "Trimestre de la nouvelle QBR",
+      generateFresh: "Générer une nouvelle BR",
+      generateFreshHint:
+        "Démarrer une nouvelle présentation vierge pour ce client.",
+      noSavedQbr:
+        "Aucune BR enregistrée pour ce client — nous en démarrerons une nouvelle.",
+      freshQuarterLabel: "Trimestre de la nouvelle BR",
       quarterTaken: (client: string, q: string, y: number) =>
-        `Une QBR existe déjà pour ${client} ${q} ${y}. Ouvrez-la au lieu de créer un doublon.`,
-      quarterAvailable: (q: string, y: number) => `Aucune QBR pour ${q} ${y} — une nouvelle présentation sera créée.`,
-      openExisting: "Ouvrir cette QBR",
+        `Une BR existe déjà pour ${client} ${q} ${y}. Ouvrez-la au lieu de créer un doublon.`,
+      quarterAvailable: (q: string, y: number) =>
+        `Aucune BR pour ${q} ${y} — une nouvelle présentation sera créée.`,
+      openExisting: "Ouvrir cette BR",
       logoTitle: "Ajouter le logo du client",
       logoHint:
         "Optionnel. Le logo du client apparaît dans le bloc de co-marquage en haut à droite (logo client │ GDI) sur chaque diapositive et est enregistré au profil du client pour les prochaines présentations. PNG, JPG ou SVG, max. 5 Mo.",
@@ -242,35 +286,38 @@ export const fr = {
   },
   email: {
     createdQbr: (client: string, q: string, y: number) =>
-      `QBR créée : ${client} ${q} ${y}.`,
+      `BR créée : ${client} ${q} ${y}.`,
     stillNeed: "Il me manque encore :",
-    replyUnknown: 'Répondez avec ce que vous savez. « Inconnu » est acceptable.',
+    replyUnknown:
+      "Répondez avec ce que vous savez. « Inconnu » est acceptable.",
     editorLink: "Ouvrir l'éditeur collaboratif",
-    createClientSubject: "Nouveau client QBR",
+    createClientSubject: "Nouveau client BR",
     createClientBody: (client: string) =>
-      `Pour créer un nouveau client « ${client} », j'ai besoin de :\n1. Date cible de la QBR\n2. Propriétaire / parties prenantes\n3. Trimestre et année\n\nRépondez avec ces informations ou utilisez l'éditeur collaboratif.`,
+      `Pour créer un nouveau client « ${client} », j'ai besoin de :\n1. Date cible de la BR\n2. Propriétaire / parties prenantes\n3. Trimestre et année\n\nRépondez avec ces informations ou utilisez l'éditeur collaboratif.`,
   },
   dashboard: {
-    title: "Tableau de bord QBR",
-    subtitle: "Vue d'ensemble des opérations — ce qui requiert votre attention dans toutes les revues trimestrielles.",
-    startViaEmail: "+ Démarrer une QBR via le simulateur courriel",
-    emptyTitle: "Tableau de bord QBR",
-    emptyState: "Aucune QBR pour l'instant. Lancez le script d'amorçage ou utilisez le simulateur courriel.",
+    title: "Tableau de bord BR",
+    subtitle:
+      "Vue d'ensemble des opérations — ce qui requiert votre attention dans toutes les revues trimestrielles.",
+    startViaEmail: "+ Démarrer une BR via le simulateur courriel",
+    emptyTitle: "Tableau de bord BR",
+    emptyState:
+      "Aucune BR pour l'instant. Lancez le script d'amorçage ou utilisez le simulateur courriel.",
     filters: "Filtres",
     searchPlaceholder: "Rechercher un client…",
     allStatuses: "Tous les statuts",
     allVps: "Tous les VP",
     clearFilters: "Effacer les filtres",
-    noMatch: "Aucune QBR ne correspond à vos filtres.",
+    noMatch: "Aucune BR ne correspond à vos filtres.",
     showAll: "Tout afficher",
     attentionFilters: {
-      all: "Toutes les QBR",
+      all: "Toutes les BR",
       needs_attention: "Requiert attention",
       vp_review: "En attente du VP",
       meeting_this_week: "Réunion cette semaine",
     },
     summary: {
-      active: "QBR actives",
+      active: "BR actives",
       highPriority: "Priorité élevée",
       awaitingVp: "En attente du VP",
       meetingsThisWeek: "Réunions cette semaine",
@@ -283,7 +330,8 @@ export const fr = {
     graphNotConfigured: "Identifiants Graph non configurés",
     connectMailbox: "Connecter la boîte aux lettres",
     attentionQueue: "File prioritaire",
-    attentionQueueHint: "QBR actives triées par urgence — traitez celles-ci en premier.",
+    attentionQueueHint:
+      "BR actives triées par urgence — traitez celles-ci en premier.",
     meeting: "Réunion",
     cadence: "Cadence",
     missingInfo: "Infos manquantes",
@@ -307,10 +355,13 @@ export const fr = {
     },
     attentionLabels: {
       vp_review: "En attente de l'approbation du VP",
-      missingInfo: (n: number) => `${n} information${n === 1 ? "" : "s"} manquante${n === 1 ? "" : "s"} ouverte${n === 1 ? "" : "s"}`,
-      unconfirmedMetrics: (n: number) => `${n} indicateur${n === 1 ? "" : "s"} non confirmé${n === 1 ? "" : "s"}`,
+      missingInfo: (n: number) =>
+        `${n} information${n === 1 ? "" : "s"} manquante${n === 1 ? "" : "s"} ouverte${n === 1 ? "" : "s"}`,
+      unconfirmedMetrics: (n: number) =>
+        `${n} indicateur${n === 1 ? "" : "s"} non confirmé${n === 1 ? "" : "s"}`,
       meetingToday: "Réunion aujourd'hui",
-      meetingInDays: (n: number) => `Réunion dans ${n} jour${n === 1 ? "" : "s"}`,
+      meetingInDays: (n: number) =>
+        `Réunion dans ${n} jour${n === 1 ? "" : "s"}`,
       noDraft: "Aucune présentation générée",
       meetingOverdue: "Date de réunion dépassée — cycle encore ouvert",
       stale: (n: number) => `Aucune activité courriel depuis ${n} jours`,
@@ -332,7 +383,7 @@ export const fr = {
     users: "Utilisateurs",
     emailSim: "Simulateur courriel",
     jobs: "Tâches",
-    newQbr: "Nouvelle QBR",
+    newQbr: "Nouvelle BR",
     editor: "Éditeur",
     language: "Langue",
   },
@@ -346,7 +397,7 @@ export const fr = {
     priorityItems: "2 à 3 éléments prioritaires",
     dashboardMetrics: "Indicateurs du tableau de bord",
     upcomingItems: "Prochaines étapes",
-    nextQbrDate: "Date proposée de la prochaine QBR",
+    nextQbrDate: "Date proposée de la prochaine BR",
   },
 } as const;
 

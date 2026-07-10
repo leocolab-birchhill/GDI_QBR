@@ -2,7 +2,7 @@
  * Central outbound-email builder. EVERY bot email is produced here so the
  * format is consistent and always carries a context header:
  *
- *   QBR: [Client Name] — [Quarter Year]
+ *   BR: [Client Name] — [Quarter Year]
  *   Status: [Collecting inputs / Draft generated / VP review / Missing info / …]
  *   Mode: [Captured update / Answer / Missing info / Approval]
  *
@@ -11,34 +11,46 @@
 
 import type { Locale } from "../constants";
 import { EmailContent } from "./templates";
-import { EMAIL_FONT_FAMILY, escapeHtml, wrapEmailHtml, emailContextHeaderStyle } from "./branding";
+import {
+  EMAIL_FONT_FAMILY,
+  escapeHtml,
+  wrapEmailHtml,
+  emailContextHeaderStyle,
+} from "./branding";
 
 /** Email "mode" surfaced in the context header (see requirement #2/#3). */
-export type EmailMode = "Captured update" | "Answer" | "Missing info" | "Approval";
+export type EmailMode =
+  | "Captured update"
+  | "Answer"
+  | "Missing info"
+  | "Approval";
 
 /**
  * Localized static labels for the outbound email scaffold. The dynamic body
  * (agent reply, intros, captured items) is localized upstream; this covers the
  * fixed chrome so a reply reads entirely in one language.
  */
-const LABELS: Record<Locale, {
-  qbr: string;
-  qbrUnmatched: string;
-  status: string;
-  statusUnmatched: string;
-  mode: string;
-  captured: string;
-  stillNeeded: string;
-  nextAction: string;
-  approval: string;
-  rePrefix: string;
-  reFallback: string;
-  modes: Record<EmailMode, string>;
-  statuses: Record<string, string>;
-}> = {
+const LABELS: Record<
+  Locale,
+  {
+    qbr: string;
+    qbrUnmatched: string;
+    status: string;
+    statusUnmatched: string;
+    mode: string;
+    captured: string;
+    stillNeeded: string;
+    nextAction: string;
+    approval: string;
+    rePrefix: string;
+    reFallback: string;
+    modes: Record<EmailMode, string>;
+    statuses: Record<string, string>;
+  }
+> = {
   en: {
-    qbr: "QBR",
-    qbrUnmatched: "QBR: (could not match this email to a QBR)",
+    qbr: "BR",
+    qbrUnmatched: "BR: (could not match this email to a BR)",
     status: "Status",
     statusUnmatched: "Unmatched",
     mode: "Mode",
@@ -47,7 +59,7 @@ const LABELS: Record<Locale, {
     nextAction: "Next action:",
     approval: "Reply APPROVE or send edits.",
     rePrefix: "Re:",
-    reFallback: "Re: your QBR email",
+    reFallback: "Re: your BR email",
     modes: {
       "Captured update": "Captured update",
       Answer: "Answer",
@@ -113,7 +125,7 @@ export interface QbrContextHeaderInput {
 }
 
 export interface BuildEmailResponseArgs {
-  /** QBR identity for the header. Null when no cycle could be matched. */
+  /** BR identity for the header. Null when no cycle could be matched. */
   qbrContext: QbrContextHeaderInput | null;
   mode: EmailMode;
   /** Language the email is written in. Defaults to English for back-compat. */
@@ -134,7 +146,10 @@ export interface BuildEmailResponseArgs {
   intro?: string;
 }
 
-export function statusLabel(status: string | null | undefined, locale?: Locale): string {
+export function statusLabel(
+  status: string | null | undefined,
+  locale?: Locale,
+): string {
   const l = labelsFor(locale);
   if (!status) return locale === "fr" ? "Inconnu" : "Unknown";
   return l.statuses[status] ?? status.replace(/_/g, " ");
@@ -155,7 +170,11 @@ export function buildContextHeader(
   return `${qbrLine}\n${statusLine}\n${modeLine}`;
 }
 
-function headerHtml(qbrContext: QbrContextHeaderInput | null, mode: EmailMode, locale?: Locale): string {
+function headerHtml(
+  qbrContext: QbrContextHeaderInput | null,
+  mode: EmailMode,
+  locale?: Locale,
+): string {
   const header = buildContextHeader(qbrContext, mode, locale);
   return `<div style="${emailContextHeaderStyle()}">${header
     .split("\n")
@@ -202,27 +221,37 @@ export function buildEmailResponse(args: BuildEmailResponseArgs): EmailContent {
 
   if (args.intro) {
     textParts.push(args.intro, "");
-    htmlParts.push(`<p style="font-family:${EMAIL_FONT_FAMILY}">${escapeHtml(args.intro).replace(/\n/g, "<br/>")}</p>`);
+    htmlParts.push(
+      `<p style="font-family:${EMAIL_FONT_FAMILY}">${escapeHtml(args.intro).replace(/\n/g, "<br/>")}</p>`,
+    );
   }
 
   if (args.answerText) {
     textParts.push(args.answerText, "");
-    htmlParts.push(`<p style="font-family:${EMAIL_FONT_FAMILY}">${escapeHtml(args.answerText).replace(/\n/g, "<br/>")}</p>`);
+    htmlParts.push(
+      `<p style="font-family:${EMAIL_FONT_FAMILY}">${escapeHtml(args.answerText).replace(/\n/g, "<br/>")}</p>`,
+    );
   }
 
   if (captured.length) {
     textParts.push(l.captured, ...captured.map((c) => `- ${c}`), "");
-    htmlParts.push(`<p><strong>${escapeHtml(l.captured)}</strong></p>${bulletList(captured)}`);
+    htmlParts.push(
+      `<p><strong>${escapeHtml(l.captured)}</strong></p>${bulletList(captured)}`,
+    );
   }
 
   if (missing.length) {
     textParts.push(l.stillNeeded, ...missing.map((m) => `- ${m}`), "");
-    htmlParts.push(`<p><strong>${escapeHtml(l.stillNeeded)}</strong></p>${bulletList(missing)}`);
+    htmlParts.push(
+      `<p><strong>${escapeHtml(l.stillNeeded)}</strong></p>${bulletList(missing)}`,
+    );
   }
 
   if (next.length) {
     textParts.push(l.nextAction, ...next.map((n) => `- ${n}`), "");
-    htmlParts.push(`<p><strong>${escapeHtml(l.nextAction)}</strong></p>${bulletList(next)}`);
+    htmlParts.push(
+      `<p><strong>${escapeHtml(l.nextAction)}</strong></p>${bulletList(next)}`,
+    );
   }
 
   if (args.approvalRequest) {
@@ -231,7 +260,10 @@ export function buildEmailResponse(args: BuildEmailResponseArgs): EmailContent {
   }
 
   const subject = subjectForResponse(args);
-  const text = textParts.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const text = textParts
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   const html = wrapEmailHtml(subject, htmlParts.join("\n"));
   return { subject, text, html };
 }

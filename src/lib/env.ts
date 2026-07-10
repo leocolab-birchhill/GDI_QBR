@@ -13,7 +13,9 @@ const EnvSchema = z.object({
   APP_URL: z.string().default("http://localhost:3000"),
   SECRET_KEY: z.string().default("change-me-in-prod"),
 
-  DATABASE_URL: z.string().default("postgresql://qbr:qbr@localhost:5432/qbr?schema=public"),
+  DATABASE_URL: z
+    .string()
+    .default("postgresql://qbr:qbr@localhost:5432/qbr?schema=public"),
 
   // OpenAI — the ONLY place these are read.
   OPENAI_API_KEY: z.string().optional(),
@@ -36,7 +38,7 @@ const EnvSchema = z.object({
     .enum(["mock", "graph", "sendgrid", "mailgun", "postmark"])
     .default("mock"),
   QBR_MAILBOX: z.string().default("qbr@gdi.com"),
-  EMAIL_SENDER_NAME: z.string().default("GDI QBR OS"),
+  EMAIL_SENDER_NAME: z.string().default("GDI BR OS"),
 
   MICROSOFT_CLIENT_ID: z.string().optional(),
   MICROSOFT_CLIENT_SECRET: z.string().optional(),
@@ -62,7 +64,10 @@ const parsed = EnvSchema.safeParse(process.env);
 
 if (!parsed.success) {
   // Fail loudly but only for truly invalid values (enums etc).
-  console.error("Invalid environment configuration:", parsed.error.flatten().fieldErrors);
+  console.error(
+    "Invalid environment configuration:",
+    parsed.error.flatten().fieldErrors,
+  );
   throw new Error("Invalid environment configuration. See logs above.");
 }
 
@@ -71,5 +76,10 @@ export const env = parsed.data;
 /** True when a usable OpenAI key is configured (not a placeholder). */
 export function hasOpenAi(): boolean {
   const key = env.OPENAI_API_KEY;
-  return Boolean(key && key.length > 20 && !key.includes("placeholder") && !key.includes("your-openai"));
+  return Boolean(
+    key &&
+    key.length > 20 &&
+    !key.includes("placeholder") &&
+    !key.includes("your-openai"),
+  );
 }
