@@ -93,7 +93,7 @@ function EditorCapabilities({ locale }: { locale: Locale }) {
             className="fixed inset-0 z-[90] cursor-default bg-transparent"
             onClick={() => setOpen(false)}
           />
-          <div className="fixed right-4 top-20 z-[100] w-[min(30rem,calc(100vw-2rem))] rounded-md border bg-popover text-popover-foreground opacity-100 shadow-2xl ring-1 ring-black/5">
+          <div className="fixed right-4 top-20 z-[100] w-[min(30rem,calc(100vw-2rem))] rounded-lg border bg-white text-slate-950 opacity-100 shadow-2xl ring-1 ring-black/10 dark:bg-slate-950 dark:text-slate-50">
             <div className="flex items-center justify-between gap-3 border-b px-3 py-2 font-medium text-foreground">
               <span>{c.title}</span>
               <button
@@ -104,10 +104,10 @@ function EditorCapabilities({ locale }: { locale: Locale }) {
                 ×
               </button>
             </div>
-            <div className="grid gap-3 px-3 py-3 sm:grid-cols-2">
+            <div className="grid gap-3 px-3 py-3 text-slate-700 dark:text-slate-200 sm:grid-cols-2">
               <div>
                 <p className="mb-1.5 font-semibold text-gdi-green">{c.can}</p>
-                <ul className="space-y-1 text-muted-foreground">
+                <ul className="space-y-1 text-slate-700 dark:text-slate-200">
                   {c.canItems.map((item, i) => (
                     <li key={i}>· {item}</li>
                   ))}
@@ -115,14 +115,14 @@ function EditorCapabilities({ locale }: { locale: Locale }) {
               </div>
               <div>
                 <p className="mb-1.5 font-semibold text-amber-800">{c.cant}</p>
-                <ul className="space-y-1 text-muted-foreground">
+                <ul className="space-y-1 text-slate-700 dark:text-slate-200">
                   {c.cantItems.map((item, i) => (
                     <li key={i}>· {item}</li>
                   ))}
                 </ul>
               </div>
             </div>
-            <p className="border-t px-3 py-2 text-[11px] text-muted-foreground">{c.capacityNote}</p>
+            <p className="border-t px-3 py-2 text-[11px] text-slate-600 dark:text-slate-300">{c.capacityNote}</p>
           </div>
         </>
       )}
@@ -1418,7 +1418,7 @@ function SlideRail({
   content,
   activeRailKey,
   onSelect,
-  onHideSection,
+  onDeleteSlide,
   onAddSlide,
   onChangeOrder,
   disabled,
@@ -1428,7 +1428,7 @@ function SlideRail({
   content: SlideContent | null;
   activeRailKey: RailKey;
   onSelect: (key: RailKey) => void;
-  onHideSection: (section: GuidedSection) => void;
+  onDeleteSlide: (target: { section?: GuidedSection; slideId?: string; title: string }) => void;
   onAddSlide: () => void;
   onChangeOrder: () => void;
   disabled?: boolean;
@@ -1478,11 +1478,11 @@ function SlideRail({
                 <button
                   type="button"
                   disabled={disabled}
-                  onClick={() => onHideSection(section)}
+                  onClick={() => onDeleteSlide({ section, title: s.editor.sections[section] })}
                   className="ml-0.5 hidden rounded px-1 text-[10px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:inline"
-                  title={locale === "fr" ? "Masquer cette diapositive" : "Hide this slide"}
+                  title={locale === "fr" ? "Supprimer cette diapositive" : "Delete this slide"}
                 >
-                  ⋯
+                  ×
                 </button>
               )}
             </div>
@@ -1492,20 +1492,30 @@ function SlideRail({
         const key = railKeyForCustom(entry.slide.id);
         const current = activeRailKey === key;
         return (
-          <button
-            key={entry.slide.id}
-            type="button"
-            disabled={disabled}
-            onClick={() => onSelect(key)}
-            className={`inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-[10px] font-medium ${
-              current ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/70"
-            }`}
-          >
-            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-background text-[9px]">
-              {index + 1}
-            </span>
-            + {entry.slide.title}
-          </button>
+          <div key={entry.slide.id} className="group relative inline-flex">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onSelect(key)}
+              className={`inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-[10px] font-medium ${
+                current ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/70"
+              }`}
+            >
+              <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-background text-[9px]">
+                {index + 1}
+              </span>
+              + {entry.slide.title}
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onDeleteSlide({ slideId: entry.slide.id, title: entry.slide.title })}
+              className="ml-0.5 hidden rounded px-1 text-[10px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive group-hover:inline"
+              title={locale === "fr" ? "Supprimer cette diapositive" : "Delete this slide"}
+            >
+              ×
+            </button>
+          </div>
         );
       })}
       <button
@@ -1850,8 +1860,18 @@ export default function CollaborateChat({
     }
   }
 
-  async function hideSection(section: GuidedSection) {
-    await submitOperations([{ type: "set_section_hidden", section, hidden: true }]);
+  async function deleteSlide(target: { section?: GuidedSection; slideId?: string; title: string }) {
+    const confirmed = window.confirm(
+      uiLocale === "fr"
+        ? `Supprimer « ${target.title} »? Les diapositives intégrées seront masquées et leur contenu sera conservé.`
+        : `Delete “${target.title}”? Built-in slides will be hidden and their content will be kept.`,
+    );
+    if (!confirmed) return;
+    await submitOperations([
+      target.slideId
+        ? { type: "remove_slide", slideId: target.slideId, title: target.title }
+        : { type: "remove_slide", section: target.section, title: target.title },
+    ]);
   }
 
   function promptAddSlide() {
@@ -2179,7 +2199,7 @@ export default function CollaborateChat({
               content={content}
               activeRailKey={activeRailKey}
               onSelect={selectRail}
-              onHideSection={hideSection}
+              onDeleteSlide={deleteSlide}
               onAddSlide={promptAddSlide}
               onChangeOrder={() => setSlideOrderOpen(true)}
               disabled={sectionBusy}
