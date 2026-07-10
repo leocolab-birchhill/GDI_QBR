@@ -46,7 +46,7 @@ describe("AgentTaskCard", () => {
     expect(screen.getByRole("heading", { name: review.nextTask?.question })).toBeInTheDocument();
     expect(screen.getByLabelText("Inspection score exact field")).toBeInTheDocument();
     expect(screen.getByLabelText("Answer in your own words")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Prepare fields" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Answer in your own words"), { target: { value: "92%" } });
     expect(onAnswerChange).toHaveBeenCalledWith("92%");
   });
