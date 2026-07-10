@@ -109,9 +109,6 @@ export default function DashboardView({
             <p className="text-muted-foreground">{s.subtitle}</p>
           </div>
         </div>
-        <Link href="/api-test/email" className="text-sm font-medium text-primary hover:underline">
-          {s.startViaEmail}
-        </Link>
       </div>
 
       <SummaryBar aggregates={aggregates} s={s} />

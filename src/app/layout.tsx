@@ -28,10 +28,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     { href: "/qbr/new", label: nav.newQbr },
     { href: "/collaborate", label: nav.editor },
     { href: "/admin/settings", label: nav.settings },
-    { href: "/admin/accounts", label: nav.accounts },
-    { href: "/admin/users", label: nav.users },
-    { href: "/api-test/email", label: nav.emailSim },
-    { href: "/api-test/jobs", label: nav.jobs },
   ];
 
   return (
