@@ -1557,7 +1557,24 @@ export default function CollaborateChat({
       if (data.fileUrl && data.versionNumber) {
         const nextDeck = { fileUrl: data.fileUrl as string, versionNumber: data.versionNumber as number };
         setLatestDeck(nextDeck);
-        window.location.href = nextDeck.fileUrl;
+
+        const deckRes = await fetch(nextDeck.fileUrl, { cache: "no-store" });
+        if (!deckRes.ok) throw new Error(`Unable to download deck (${deckRes.status})`);
+
+        const blob = await deckRes.blob();
+        const pptxMime = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+        if (blob.size === 0 || (blob.type && blob.type !== pptxMime)) {
+          throw new Error("Downloaded deck was not a valid PowerPoint file");
+        }
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = typeof data.fileName === "string" && data.fileName ? data.fileName : `BR_Draft_v${nextDeck.versionNumber}.pptx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
       }
     } catch (e) {
       setMessages((m) => [
