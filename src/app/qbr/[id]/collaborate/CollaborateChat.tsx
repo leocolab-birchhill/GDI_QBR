@@ -1351,6 +1351,7 @@ export default function CollaborateChat({
   const [busy, setBusy] = useState(false);
   const [formBusy, setFormBusy] = useState(false);
   const [deckBusy, setDeckBusy] = useState(false);
+  const [downloadBusy, setDownloadBusy] = useState(false);
   const [latestDeck, setLatestDeck] = useState<DeckRef | null>(initialDeck);
   const [editorProgress, setEditorProgress] = useState<EditorProgress>(initialProgress);
   const [formResult, setFormResult] = useState<string | null>(null);
@@ -1536,6 +1537,39 @@ export default function CollaborateChat({
       setDeckLocale(previous);
     } finally {
       setDeckBusy(false);
+    }
+  }
+
+  async function downloadCurrentDeck() {
+    if (downloadBusy) return;
+    setDownloadBusy(true);
+    try {
+      const res = await fetch(`/api/qbr/${qbrId}/generate-draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // The HTML preview is deterministic from the structured QBR state.
+        // Download from the same deterministic path so the PPTX matches what is
+        // displayed instead of serving an older/stale DeckVersion file.
+        body: JSON.stringify({ skipAi: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? res.statusText);
+      if (data.fileUrl && data.versionNumber) {
+        const nextDeck = { fileUrl: data.fileUrl as string, versionNumber: data.versionNumber as number };
+        setLatestDeck(nextDeck);
+        window.location.href = nextDeck.fileUrl;
+      }
+    } catch (e) {
+      setMessages((m) => [
+        ...m,
+        {
+          role: "assistant",
+          text: `Error downloading deck: ${(e as Error).message}`,
+          section: activeSectionParam(),
+        },
+      ]);
+    } finally {
+      setDownloadBusy(false);
     }
   }
 
@@ -1739,12 +1773,14 @@ export default function CollaborateChat({
                   <span className="text-[11px] text-muted-foreground">
                     {s.editor.latestDeckVersion(latestDeck.versionNumber)}
                   </span>
-                  <a
-                    href={latestDeck.fileUrl}
+                  <button
+                    type="button"
+                    onClick={downloadCurrentDeck}
+                    disabled={downloadBusy}
                     className="inline-flex items-center whitespace-nowrap rounded-md border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
                   >
-                    {s.editor.downloadLatestDeck}
-                  </a>
+                    {downloadBusy ? s.editor.revising : s.editor.downloadLatestDeck}
+                  </button>
                 </>
               )}
               <Link
