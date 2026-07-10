@@ -51,9 +51,9 @@ env:
   - name: MICROSOFT_REDIRECT_URI
     value: https://business-review-agent-4200208477969544.4.azure.databricksapps.com/api/outlook/callback
 
-  # Set to "true" on first deploy only, then remove or set "false".
+  # Set to "true" only if using start:local (not used by default npm start).
   - name: RUN_DB_SEED
-    value: "true"
+    value: "false"
 
   # Secrets — resource keys must match Databricks App resources
   - name: OPENAI_API_KEY
