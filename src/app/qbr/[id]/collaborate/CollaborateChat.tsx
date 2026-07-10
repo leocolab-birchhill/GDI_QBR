@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 import type { SlideContent, SlideEditOp, DeckPatch } from "@/lib/ai/schemas";
 import { METRIC_GROUPS } from "@/lib/constants";
@@ -71,38 +72,61 @@ function isCustomRailKey(key: RailKey): key is `custom:${string}` {
 
 function EditorCapabilities({ locale }: { locale: Locale }) {
   const c = getStrings(locale).editor.capabilities;
+  const [open, setOpen] = useState(false);
   return (
-    <details className="group relative inline-block text-xs">
-      <summary
-        className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full border bg-background text-muted-foreground hover:bg-accent hover:text-foreground [&::-webkit-details-marker]:hidden"
+    <div className="relative inline-block text-xs">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex h-7 w-7 items-center justify-center rounded-full border bg-background text-muted-foreground shadow-sm hover:bg-accent hover:text-foreground"
         title={c.title}
         aria-label={c.title}
+        aria-expanded={open}
       >
         ?
-      </summary>
-      <div className="absolute right-0 z-20 mt-2 w-[min(30rem,calc(100vw-2rem))] rounded-md border bg-popover text-popover-foreground shadow-lg">
-        <div className="border-b px-3 py-2 font-medium text-foreground">{c.title}</div>
-        <div className="grid gap-3 px-3 py-3 sm:grid-cols-2">
-          <div>
-          <p className="mb-1.5 font-semibold text-gdi-green">{c.can}</p>
-          <ul className="space-y-1 text-muted-foreground">
-            {c.canItems.map((item, i) => (
-              <li key={i}>· {item}</li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <p className="mb-1.5 font-semibold text-amber-800">{c.cant}</p>
-          <ul className="space-y-1 text-muted-foreground">
-            {c.cantItems.map((item, i) => (
-              <li key={i}>· {item}</li>
-            ))}
-          </ul>
+      </button>
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-label={locale === "fr" ? "Fermer l'aide" : "Close help"}
+            className="fixed inset-0 z-[90] cursor-default bg-transparent"
+            onClick={() => setOpen(false)}
+          />
+          <div className="fixed right-4 top-20 z-[100] w-[min(30rem,calc(100vw-2rem))] rounded-md border bg-popover text-popover-foreground opacity-100 shadow-2xl ring-1 ring-black/5">
+            <div className="flex items-center justify-between gap-3 border-b px-3 py-2 font-medium text-foreground">
+              <span>{c.title}</span>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                ×
+              </button>
+            </div>
+            <div className="grid gap-3 px-3 py-3 sm:grid-cols-2">
+              <div>
+                <p className="mb-1.5 font-semibold text-gdi-green">{c.can}</p>
+                <ul className="space-y-1 text-muted-foreground">
+                  {c.canItems.map((item, i) => (
+                    <li key={i}>· {item}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <p className="mb-1.5 font-semibold text-amber-800">{c.cant}</p>
+                <ul className="space-y-1 text-muted-foreground">
+                  {c.cantItems.map((item, i) => (
+                    <li key={i}>· {item}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <p className="border-t px-3 py-2 text-[11px] text-muted-foreground">{c.capacityNote}</p>
           </div>
-        </div>
-        <p className="border-t px-3 py-2 text-[11px] text-muted-foreground">{c.capacityNote}</p>
-      </div>
-    </details>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1115,7 +1139,7 @@ function SlideEditorPanel({
         )}
       </div>}
 
-      {!compact && <button
+      <button
         type="button"
         onClick={onToggleFormCard}
         className="flex w-full items-center justify-between rounded-md border bg-card px-3 py-2 text-left text-xs font-medium hover:bg-accent/50"
@@ -1126,10 +1150,10 @@ function SlideEditorPanel({
             : s.editor.formTitles[section]}
         </span>
         <span className="text-muted-foreground">{formCardCollapsed ? "+" : "−"}</span>
-      </button>}
+      </button>
 
-      {(compact || !formCardCollapsed) && (
-        <div className={compact ? "rounded-lg border bg-background p-3" : "rounded-lg border-2 border-border bg-card p-4 shadow-sm"}>
+      {!formCardCollapsed && (
+        <div className={`${compact ? "rounded-lg border bg-background p-3" : "rounded-lg border-2 border-border bg-card p-4 shadow-sm"} resize-y overflow-auto`}>
           {!isCustom && (
             <>
               {!compact && <div className="mb-4">
@@ -1568,6 +1592,9 @@ export default function CollaborateChat({
   );
   const [scrollToken, setScrollToken] = useState(0);
   const [slideOrderOpen, setSlideOrderOpen] = useState(false);
+  const [previewCollapsed, setPreviewCollapsed] = useState(false);
+  const [previewExpanded, setPreviewExpanded] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(44);
 
   const endRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
@@ -1996,32 +2023,91 @@ export default function CollaborateChat({
     selectSection(editorProgress.currentSection, false);
   }
 
+  function startPreviewResize(event: ReactPointerEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = previewWidth;
+    const viewportWidth = Math.max(window.innerWidth, 1);
+
+    function onPointerMove(moveEvent: PointerEvent) {
+      const deltaPercent = ((moveEvent.clientX - startX) / viewportWidth) * 100;
+      setPreviewWidth(Math.min(70, Math.max(24, startWidth + deltaPercent)));
+    }
+
+    function onPointerUp() {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }
+
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-4">
-      <aside className="hidden w-[44%] min-w-[360px] flex-col lg:flex">
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">{s.editor.livePreview}</h2>
-          <span className="text-xs text-muted-foreground">
-            {slides.length > 0 ? s.editor.slides(slides.length) : "—"}
-          </span>
+    <div className="flex h-[calc(100vh-8rem)] gap-3">
+      <aside
+        className={`hidden min-w-0 flex-col rounded-lg border bg-background/95 p-2 transition-[width] lg:flex ${
+          previewCollapsed ? "overflow-hidden" : ""
+        }`}
+        style={{ width: previewCollapsed ? "3rem" : previewExpanded ? "72%" : `${previewWidth}%` }}
+      >
+        <div className="mb-2 flex items-center justify-between gap-2">
+          {!previewCollapsed && (
+            <>
+              <h2 className="text-sm font-semibold">{s.editor.livePreview}</h2>
+              <span className="text-xs text-muted-foreground">
+                {slides.length > 0 ? s.editor.slides(slides.length) : "—"}
+              </span>
+            </>
+          )}
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPreviewExpanded((value) => !value)}
+              className="rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+              title={previewExpanded ? (uiLocale === "fr" ? "Réduire l'aperçu" : "Restore preview size") : (uiLocale === "fr" ? "Agrandir l'aperçu" : "Expand preview")}
+            >
+              {previewExpanded ? "↙" : "↗"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewCollapsed((value) => !value)}
+              className="rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground"
+              title={previewCollapsed ? (uiLocale === "fr" ? "Afficher l'aperçu" : "Show preview") : (uiLocale === "fr" ? "Masquer l'aperçu" : "Collapse preview")}
+            >
+              {previewCollapsed ? "›" : "‹"}
+            </button>
+          </div>
         </div>
-        <DeckLanguageToggle
-          deckLocale={deckLocale}
-          uiLocale={uiLocale}
-          busy={deckBusy}
-          onChange={changeDeckLanguage}
-        />
-        <div className="min-h-0 flex-1">
-          <DeckPreview
-            slides={slides}
-            highlightSection={highlightSection}
-            scrollToken={scrollToken}
-            onSelectSlide={(section) => selectSection(section)}
-          />
-        </div>
+        {!previewCollapsed && (
+          <>
+            <DeckLanguageToggle
+              deckLocale={deckLocale}
+              uiLocale={uiLocale}
+              busy={deckBusy}
+              onChange={changeDeckLanguage}
+            />
+            <div className="min-h-0 flex-1 resize-y overflow-auto rounded-md">
+              <DeckPreview
+                slides={slides}
+                highlightSection={highlightSection}
+                scrollToken={scrollToken}
+                onSelectSlide={(section) => selectSection(section)}
+              />
+            </div>
+          </>
+        )}
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <button
+        type="button"
+        onPointerDown={startPreviewResize}
+        className="hidden w-2 cursor-col-resize rounded-full bg-border hover:bg-primary/40 lg:block"
+        aria-label={uiLocale === "fr" ? "Redimensionner les volets" : "Resize panes"}
+        title={uiLocale === "fr" ? "Glisser pour redimensionner" : "Drag to resize"}
+      />
+
+      <div className="flex min-w-0 flex-1 resize-x flex-col overflow-auto rounded-lg border bg-background p-2">
         <div className="shrink-0 border-b pb-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -2192,8 +2278,8 @@ export default function CollaborateChat({
                     clientName={clientName}
                     formResult={formResult}
                     activeRailKey={activeRailKey}
-                    formCardCollapsed={false}
-                    onToggleFormCard={() => undefined}
+                    formCardCollapsed={formCardCollapsed}
+                    onToggleFormCard={() => setFormCardCollapsed((value) => !value)}
                     onSave={submitOperations}
                     onComplete={confirmCurrentSection}
                     onReopen={reopenCurrentSection}
