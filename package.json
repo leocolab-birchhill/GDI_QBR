@@ -21,7 +21,6 @@
     "prisma:migrate": "cross-env NODE_OPTIONS=--use-system-ca prisma migrate dev",
     "prisma:deploy": "cross-env NODE_OPTIONS=--use-system-ca prisma migrate deploy",
     "prisma:reset": "cross-env NODE_OPTIONS=--use-system-ca prisma migrate reset --force",
-    "db:seed:local": "cross-env NODE_OPTIONS=--use-system-ca tsx prisma/seed.ts",
     "graph:token": "cross-env NODE_OPTIONS=--use-system-ca tsx scripts/print-graph-token.ts",
     "postinstall": "prisma generate"
   },
