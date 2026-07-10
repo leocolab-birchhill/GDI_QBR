@@ -220,7 +220,6 @@ export const en = {
       cantItems: [
         "Change fonts, colors, logos, or slide layout",
         "Upload a custom .pptx",
-        'Make up metric values — enter a real value, or leave it as "To confirm"',
       ],
     },
   },
