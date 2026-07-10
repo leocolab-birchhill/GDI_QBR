@@ -1,4 +1,5 @@
 import { Readable } from "stream";
+import path from "path";
 import { WorkspaceClient } from "@databricks/sdk-experimental";
 import { env } from "../env";
 
@@ -48,10 +49,20 @@ export async function volumeWrite(
 ): Promise<void> {
   const filePath = volumeFilePath(relativePath);
   const buf = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
+  if (buf.length === 0) {
+    throw new Error(`Refusing to upload empty file to ${filePath}`);
+  }
+
+  const directoryPath = path.posix.dirname(filePath);
+  await getClient().files.createDirectory({ directory_path: directoryPath });
+
   const webStream = Readable.toWeb(Readable.from(buf));
-  await getClient().files.upload({
-    file_path: filePath,
-    contents: webStream as never,
-    overwrite: true,
+  await getClient().apiClient.request({
+    path: `/api/2.0/fs/files${filePath}`,
+    method: "PUT",
+    headers: new Headers({ "Content-Type": "application/octet-stream" }),
+    raw: false,
+    query: { overwrite: true },
+    payload: webStream,
   });
 }
