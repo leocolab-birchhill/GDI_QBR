@@ -160,6 +160,20 @@ export const fr = {
     askAssistant: "Demander à l'assistant",
     askAssistantHelper:
       "Utilisez le clavardage pour les modifications groupées ou celles plus faciles à décrire en mots.",
+    agentFlow: {
+      nextStep: "Prochaine étape recommandée",
+      needsInput: "Information requise",
+      ready: "Prête",
+      complete: "Terminée",
+      answerNaturally: "Répondre dans vos mots",
+      prepareFields: "Préparer les champs",
+      proposedChange: "Modification proposée",
+      apply: "Appliquer",
+      reject: "Rejeter",
+      undo: "Annuler la dernière modification de l'agent",
+      activity: "Conversation et activité",
+      collaboratorResolved: "Cette proposition a été traitée par un collaborateur.",
+    },
     slideChatPlaceholder: "Décrivez une modification à cette diapositive…",
     chatHistory: "Historique du clavardage",
     tableColumns: {

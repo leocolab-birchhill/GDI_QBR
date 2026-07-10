@@ -14,9 +14,11 @@ import {
   type GuidedSection,
   type Locale,
 } from "@/lib/i18n";
-import { getSectionGuidance, sectionChatPlaceholder } from "@/lib/qbr/sectionGuidance";
+import { getSectionGuidance, getSectionReview, sectionChatPlaceholder } from "@/lib/qbr/sectionGuidance";
 import DeckPreview from "./DeckPreview";
 import DeckLanguageToggle from "./DeckLanguageToggle";
+import AgentTaskCard, { AgentActivity } from "./AgentTaskCard";
+import { useAgentProposal } from "./useAgentProposal";
 
 interface DeckRef {
   fileUrl: string;
@@ -32,6 +34,16 @@ interface ChatMessage {
   applied?: string[];
   deck?: DeckRef | null;
   suggestions?: string[];
+}
+
+interface ChangeActivity {
+  id: string;
+  status: string;
+  section?: string | null;
+  actorName?: string | null;
+  message?: string | null;
+  createdAt: string;
+  revertsId?: string | null;
 }
 
 type ThreadScope = "section" | "all";
@@ -983,6 +995,7 @@ function SlideEditorPanel({
   onComplete,
   onReopen,
   onSuggestionClick,
+  compact = false,
 }: {
   progress: EditorProgress;
   locale: Locale;
@@ -998,6 +1011,7 @@ function SlideEditorPanel({
   onComplete: () => void;
   onReopen: () => void;
   onSuggestionClick: (text: string) => void;
+  compact?: boolean;
 }) {
   const s = getStrings(locale);
   const section = progress.currentSection;
@@ -1054,7 +1068,7 @@ function SlideEditorPanel({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-3">
+      {!compact && <div className="rounded-lg border-2 border-primary/20 bg-primary/5 p-3">
         <p className="whitespace-pre-wrap text-xs text-foreground">{displayGuidance.intro}</p>
         {displayGuidance.missingFields.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1084,9 +1098,9 @@ function SlideEditorPanel({
             ))}
           </div>
         )}
-      </div>
+      </div>}
 
-      <button
+      {!compact && <button
         type="button"
         onClick={onToggleFormCard}
         className="flex w-full items-center justify-between rounded-md border bg-card px-3 py-2 text-left text-xs font-medium hover:bg-accent/50"
@@ -1097,13 +1111,13 @@ function SlideEditorPanel({
             : s.editor.formTitles[section]}
         </span>
         <span className="text-muted-foreground">{formCardCollapsed ? "+" : "−"}</span>
-      </button>
+      </button>}
 
-      {!formCardCollapsed && (
-        <div className="rounded-lg border-2 border-border bg-card p-4 shadow-sm">
+      {(compact || !formCardCollapsed) && (
+        <div className={compact ? "rounded-lg border bg-background p-3" : "rounded-lg border-2 border-border bg-card p-4 shadow-sm"}>
           {!isCustom && (
             <>
-              <div className="mb-4">
+              {!compact && <div className="mb-4">
                 <p className="text-xs text-muted-foreground">{s.editor.editingSlide(sectionIndex, totalSlides)}</p>
                 <h3 className="mt-0.5 text-sm font-semibold text-foreground">{s.editor.slideTitles[section]}</h3>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -1115,7 +1129,7 @@ function SlideEditorPanel({
                 {hasUnsaved && (
                   <p className="mt-2 text-[11px] font-medium text-amber-700">{s.editor.unsavedChanges}</p>
                 )}
-              </div>
+              </div>}
               <SlideFormContent
                 section={section}
                 locale={locale}
@@ -1244,7 +1258,9 @@ function SlideRail({
       {GUIDED_SECTIONS.map((section, index) => {
         if (hidden.has(section)) return null;
         const key = railKeyForSection(section);
-        const confirmed = progress.confirmedSections.includes(section);
+        const review = getSectionReview(section, content, progress, locale);
+        const confirmed = review.status === "complete";
+        const ready = review.status === "ready";
         const current = activeRailKey === key;
         return (
           <div key={section} className="group relative inline-flex">
@@ -1252,12 +1268,14 @@ function SlideRail({
               type="button"
               disabled={disabled}
               onClick={() => onSelect(key)}
-              title={locale === "fr" ? "Aller à cette diapositive" : "Jump to this slide"}
+              title={`${locale === "fr" ? "Aller à cette diapositive" : "Jump to this slide"} — ${review.status.replace("_", " ")}`}
               className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-colors hover:ring-1 hover:ring-primary/40 disabled:opacity-50 ${
                 current
                   ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30"
                   : confirmed
                     ? "border-gdi-green/30 bg-gdi-green/15 text-gdi-green hover:bg-gdi-green/25"
+                    : ready
+                      ? "border-primary/30 bg-primary/5 text-primary"
                     : "border-border bg-muted text-muted-foreground hover:bg-muted/70"
               }`}
             >
@@ -1365,6 +1383,8 @@ export default function CollaborateChat({
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(initialClientName);
   const [sectionBusy, setSectionBusy] = useState(false);
+  const [changeHistory, setChangeHistory] = useState<ChangeActivity[]>([]);
+  const agent = useAgentProposal(qbrId);
 
   const [content, setContent] = useState<SlideContent | null>(initialContent);
   const [deckOptions, setDeckOptions] = useState<DeckOptions>(initialOptions);
@@ -1381,6 +1401,10 @@ export default function CollaborateChat({
   const activeThreadSection = isCustomRailKey(activeRailKey)
     ? activeRailKey
     : editorProgress.currentSection;
+  const sectionReview = useMemo(
+    () => getSectionReview(editorProgress.currentSection, content, editorProgress, uiLocale),
+    [content, editorProgress, uiLocale],
+  );
 
   const visibleMessages = useMemo(() => {
     if (threadScope === "all") return messages;
@@ -1441,6 +1465,27 @@ export default function CollaborateChat({
     const interval = setInterval(pollMessages, 5000);
     return () => clearInterval(interval);
   }, [pollMessages]);
+
+  useEffect(() => {
+    const pollChanges = async () => {
+      try {
+        const response = await fetch(`/api/qbr/${qbrId}/changes?take=20`);
+        const data = await response.json();
+        const changes = (data.changes ?? []) as ChangeActivity[];
+        setChangeHistory(changes);
+        const current = changes.find((change) => change.id === agent.proposal?.id);
+        if (current && current.status !== "proposed") {
+          agent.clearProposal();
+          setFormResult(uiLocale === "fr" ? "Cette proposition a été traitée par un collaborateur." : "A collaborator resolved this proposal.");
+        }
+      } catch {
+        /* message polling remains the fallback */
+      }
+    };
+    void pollChanges();
+    const interval = setInterval(pollChanges, 5000);
+    return () => clearInterval(interval);
+  }, [agent.proposal?.id, agent.clearProposal, qbrId, uiLocale]);
 
   async function selectRail(key: RailKey) {
     setActiveRailKey(key);
@@ -1617,6 +1662,20 @@ export default function CollaborateChat({
     return isCustomRailKey(activeRailKey) ? activeRailKey : editorProgress.currentSection;
   }
 
+  function applyAgentResult(data: Record<string, unknown>) {
+    if (data.deck) setLatestDeck(data.deck as DeckRef);
+    if (data.content) {
+      setContent(data.content as SlideContent);
+      if (data.options) setDeckOptions(data.options as DeckOptions);
+      const changed: SlideSection[] = Array.isArray(data.changedSections) ? data.changedSections as SlideSection[] : [];
+      setHighlightSection(changed.length > 0 ? changed[0] : editorProgress.currentSection);
+      setScrollToken((token) => token + 1);
+    }
+    if (data.editorProgress) {
+      setEditorProgress(data.editorProgress as EditorProgress);
+    }
+  }
+
   async function send(text: string, confirmSection?: string) {
     const messageText = text.trim();
     if (!messageText || busy) return;
@@ -1624,48 +1683,32 @@ export default function CollaborateChat({
     setMessages((m) => [...m, { role: "user", text: messageText, section: activeSectionParam() }]);
     setBusy(true);
     try {
-      const res = await fetch(`/api/qbr/${qbrId}/collaborate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: messageText,
-          confirmSection,
-          activeSection: activeSectionParam(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessages((m) => [...m, { role: "assistant", text: `Error: ${data.error ?? res.statusText}` }]);
+      let data: Record<string, unknown>;
+      if (confirmSection) {
+        const res = await fetch(`/api/qbr/${qbrId}/collaborate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: messageText, confirmSection, activeSection: activeSectionParam() }),
+        });
+        data = await res.json() as Record<string, unknown>;
+        if (!res.ok) throw new Error(String(data.error ?? res.statusText));
       } else {
-        if (data.deck) setLatestDeck(data.deck);
-        if (data.content) {
-          setContent(data.content as SlideContent);
-          if (data.options) setDeckOptions(data.options as DeckOptions);
-          const changed: SlideSection[] = Array.isArray(data.changedSections) ? data.changedSections : [];
-          setHighlightSection(changed.length > 0 ? changed[0] : editorProgress.currentSection);
-          setScrollToken((t) => t + 1);
-        }
-        if (data.editorProgress) {
-          setEditorProgress(data.editorProgress);
-          if (!data.content) {
-            setHighlightSection(data.editorProgress.currentSection);
-            setScrollToken((t) => t + 1);
-          }
-        }
-        setMessages((m) => [
-          ...m,
-          {
-            id: data.messageId,
-            role: "assistant",
-            text: data.reply,
-            section: activeSectionParam(),
-            applied: data.applied,
-            deck: data.deck,
-            suggestions: data.suggestions,
-          },
-        ]);
-        lastPollRef.current = new Date().toISOString();
+        data = await agent.propose(messageText, activeSectionParam());
       }
+      applyAgentResult(data);
+      setMessages((m) => [
+        ...m,
+        {
+          id: data.messageId as string | undefined,
+          role: "assistant",
+          text: String(data.reply ?? ""),
+          section: activeSectionParam(),
+          applied: data.applied as string[] | undefined,
+          deck: data.deck as DeckRef | null,
+          suggestions: data.suggestions as string[] | undefined,
+        },
+      ]);
+      lastPollRef.current = new Date().toISOString();
     } catch (e) {
       setMessages((m) => [...m, { role: "assistant", text: `Error: ${(e as Error).message}` }]);
     } finally {
@@ -1675,6 +1718,43 @@ export default function CollaborateChat({
 
   function confirmCurrentSection() {
     send(s.editor.confirm, editorProgress.currentSection);
+  }
+
+  async function acceptProposal() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const data = await agent.accept();
+      applyAgentResult(data);
+      setFormResult(uiLocale === "fr" ? "Modification appliquée et présentation mise à jour." : "Change applied and deck updated.");
+    } catch (error) {
+      setFormResult(`Error: ${(error as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rejectProposal() {
+    try {
+      await agent.reject();
+      setFormResult(uiLocale === "fr" ? "Proposition rejetée; aucune donnée modifiée." : "Proposal rejected; no data changed.");
+    } catch (error) {
+      setFormResult(`Error: ${(error as Error).message}`);
+    }
+  }
+
+  async function undoAgentChange() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const data = await agent.undo();
+      applyAgentResult(data);
+      setFormResult(uiLocale === "fr" ? "Dernière modification annulée." : "Last agent change undone.");
+    } catch (error) {
+      setFormResult(`Error: ${(error as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function submitOperations(operations: SlideEditOp[]) {
@@ -1841,30 +1921,79 @@ export default function CollaborateChat({
             )}
 
             {editorProgress.guidedMode && (
-              <div className="mt-3">
-                <SlideEditorPanel
-                  progress={editorProgress}
+              isCustomRailKey(activeRailKey) ? (
+                <div className="mt-3">
+                  <SlideEditorPanel
+                    progress={editorProgress}
+                    locale={uiLocale}
+                    busy={busy || formBusy}
+                    sectionBusy={sectionBusy}
+                    content={content}
+                    clientName={clientName}
+                    formResult={formResult}
+                    activeRailKey={activeRailKey}
+                    formCardCollapsed={formCardCollapsed}
+                    onToggleFormCard={() => setFormCardCollapsed((value) => !value)}
+                    onSave={submitOperations}
+                    onComplete={confirmCurrentSection}
+                    onReopen={reopenCurrentSection}
+                    onSuggestionClick={setInput}
+                  />
+                </div>
+              ) : (
+                <AgentTaskCard
+                  review={sectionReview}
                   locale={uiLocale}
-                  busy={busy || formBusy}
-                  sectionBusy={sectionBusy}
-                  content={content}
-                  clientName={clientName}
-                  formResult={formResult}
-                  activeRailKey={activeRailKey}
-                  formCardCollapsed={formCardCollapsed}
-                  onToggleFormCard={() => setFormCardCollapsed((v) => !v)}
-                  onSave={submitOperations}
-                  onComplete={confirmCurrentSection}
-                  onReopen={reopenCurrentSection}
-                  onSuggestionClick={(text) => {
-                    setInput(text);
-                    inputRef.current?.focus();
-                  }}
-                />
-              </div>
+                  answer={input}
+                  onAnswerChange={setInput}
+                  onSubmit={() => send(input)}
+                  onConfirmSection={confirmCurrentSection}
+                  onAcceptProposal={acceptProposal}
+                  onRejectProposal={rejectProposal}
+                  onUndo={undoAgentChange}
+                  proposal={agent.proposal}
+                  stage={agent.stage}
+                  busy={busy || formBusy || agent.stage !== "idle"}
+                >
+                  <SlideEditorPanel
+                    compact
+                    progress={editorProgress}
+                    locale={uiLocale}
+                    busy={busy || formBusy}
+                    sectionBusy={sectionBusy}
+                    content={content}
+                    clientName={clientName}
+                    formResult={formResult}
+                    activeRailKey={activeRailKey}
+                    formCardCollapsed={false}
+                    onToggleFormCard={() => undefined}
+                    onSave={submitOperations}
+                    onComplete={confirmCurrentSection}
+                    onReopen={reopenCurrentSection}
+                    onSuggestionClick={setInput}
+                  />
+                </AgentTaskCard>
+              )
             )}
 
-            <div className="mt-4 flex min-h-[200px] flex-1 flex-col rounded-md border bg-muted/10">
+            <div className="mt-4">
+            <AgentActivity locale={uiLocale}>
+            {changeHistory.length > 0 && (
+              <div className="border-b bg-background px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {uiLocale === "fr" ? "Modifications récentes" : "Recent changes"}
+                </p>
+                <ul className="mt-1 space-y-1">
+                  {changeHistory.slice(0, 5).map((change) => (
+                    <li key={change.id} className="flex items-center justify-between gap-2 text-[10px]">
+                      <span className="truncate">{change.message || change.section || (uiLocale === "fr" ? "Modification de la présentation" : "Deck change")}</span>
+                      <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 font-medium">{change.status}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="flex min-h-[200px] flex-1 flex-col bg-muted/10">
               <div className="flex items-center justify-between border-b px-3 py-2">
                 <h3 className="text-xs font-medium text-foreground">{s.editor.askAssistant}</h3>
                 <div className="flex gap-1 text-[10px]">
@@ -1980,6 +2109,8 @@ export default function CollaborateChat({
                   {s.editor.send}
                 </button>
               </form>
+            </div>
+            </AgentActivity>
             </div>
 
             <EditorCapabilities locale={uiLocale} />

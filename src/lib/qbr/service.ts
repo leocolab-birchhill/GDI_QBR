@@ -882,6 +882,12 @@ export async function applySlideEdits(
   }
 
   if (changes.length) {
+    // Bump the cycle revision even when only child rows changed. Agent proposals
+    // use QbrCycle.updatedAt for optimistic concurrency.
+    await prisma.qbrCycle.update({
+      where: { id: qbrCycleId },
+      data: { updatedAt: new Date() },
+    });
     await audit({
       entityType: "QbrCycle",
       entityId: qbrCycleId,

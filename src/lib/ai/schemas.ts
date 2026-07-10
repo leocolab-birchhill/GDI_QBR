@@ -286,4 +286,25 @@ export const SlideEditSchema = z.object({
 });
 export type SlideEditResult = z.infer<typeof SlideEditSchema>;
 
+export const FieldChangeSchema = z.object({
+  field: z.string(),
+  before: z.unknown().nullable().optional(),
+  after: z.unknown().nullable().optional(),
+});
+
+/** Proposal-first contract used by the agent-led editor before any mutation. */
+export const EditorProposalSchema = z.object({
+  reply: z.string(),
+  section: z.string().nullable().optional(),
+  confidence: z.number().min(0).max(1).default(0.5),
+  explanation: z.string().default(""),
+  clarificationQuestion: z.string().nullable().optional(),
+  fieldChanges: z.array(FieldChangeSchema).default([]),
+  operations: z.array(SlideEditOpSchema).default([]),
+  patches: z.array(DeckPatchSchema).default([]),
+  regenerate: z.boolean().default(true),
+  suggestions: z.array(z.string()).default([]),
+});
+export type EditorProposal = z.infer<typeof EditorProposalSchema>;
+
 export { METRIC_GROUPS };

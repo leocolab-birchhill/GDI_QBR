@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { IntentSchema, ExtractionSchema } from "@/lib/ai/schemas";
+import { IntentSchema, ExtractionSchema, EditorProposalSchema } from "@/lib/ai/schemas";
 import {
   fallbackClassify,
   fallbackExtract,
@@ -70,5 +70,29 @@ describe("client-safe rewriting", () => {
   it("does not invent values; preserves unknown markers", () => {
     const r = fallbackRewrite(`Inspection score ${TO_CONFIRM}`);
     expect(r.clientReadyText).toContain(TO_CONFIRM);
+  });
+});
+
+describe("editor proposal validation", () => {
+  it("keeps natural-language edits proposal-only and structured", () => {
+    const proposal = EditorProposalSchema.parse({
+      reply: "I prepared one metric update.",
+      section: "dashboard",
+      confidence: 0.9,
+      explanation: "The value was explicitly provided.",
+      fieldChanges: [{ field: "Inspection score", before: "To confirm", after: "92%" }],
+      operations: [{ type: "set_metric", group: "Operational", label: "Inspection score", value: "92%" }],
+      patches: [],
+    });
+    expect(proposal.operations[0]).toMatchObject({ type: "set_metric", value: "92%" });
+    expect(proposal.regenerate).toBe(true);
+  });
+
+  it("rejects invalid confidence and unrecognized operations", () => {
+    expect(EditorProposalSchema.safeParse({ reply: "x", confidence: 2 }).success).toBe(false);
+    expect(EditorProposalSchema.safeParse({
+      reply: "x",
+      operations: [{ type: "invent_metric", label: "Score", value: "100" }],
+    }).success).toBe(false);
   });
 });

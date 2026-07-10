@@ -9,9 +9,136 @@ export interface SectionGuidance {
   suggestions: string[];
 }
 
+export type InterviewInputType = "text" | "date" | "list" | "metric" | "prose";
+export type SectionReviewStatus = "needs_input" | "reviewing" | "ready" | "complete";
+
+export interface InterviewField {
+  key: string;
+  label: string;
+  inputType: InterviewInputType;
+  required: boolean;
+  validation?: { maxLength?: number; minItems?: number };
+}
+
+export interface InterviewTask {
+  id: string;
+  section: GuidedSection;
+  question: string;
+  rationale: string;
+  fields: InterviewField[];
+  priority: number;
+  complete: boolean;
+}
+
+export interface SectionReviewSummary {
+  status: SectionReviewStatus;
+  missing: string[];
+  unconfirmed: string[];
+  warnings: string[];
+  nextTask: InterviewTask | null;
+}
+
 function isUnconfirmed(value: string): boolean {
   const v = value.trim().toLowerCase();
   return !v || v === "to confirm" || v === "à confirmer" || v === "a confirmer";
+}
+
+function taskCopy(section: GuidedSection, locale?: Locale | null) {
+  const fr = locale === "fr";
+  const copy: Record<GuidedSection, { question: string; rationale: string; field: InterviewField }> = {
+    title: {
+      question: fr ? "Quand cette revue aura-t-elle lieu?" : "When will this review take place?",
+      rationale: fr ? "La date ancre la page titre et le calendrier de suivi." : "The date anchors the title slide and follow-up schedule.",
+      field: { key: "title.meetingDate", label: fr ? "Date de réunion" : "Meeting date", inputType: "date", required: true },
+    },
+    agenda: {
+      question: fr ? "Quels sujets devons-nous couvrir avec le client?" : "What should we cover with the client?",
+      rationale: fr ? "L'ordre du jour doit refléter les décisions attendues." : "The agenda should reflect the decisions expected from the meeting.",
+      field: { key: "agenda", label: fr ? "Sections de l'ordre du jour" : "Agenda sections", inputType: "list", required: true, validation: { minItems: 1 } },
+    },
+    followUps: {
+      question: fr ? "Quel engagement devons-nous clarifier ensuite?" : "Which follow-up should we clarify next?",
+      rationale: fr ? "Chaque engagement doit avoir un responsable et une échéance." : "Every commitment needs an accountable owner and due date.",
+      field: { key: "followUps", label: fr ? "Engagements" : "Follow-ups", inputType: "list", required: true, validation: { minItems: 1 } },
+    },
+    priorities: {
+      question: fr ? "Quelles sont les 2 ou 3 priorités à discuter?" : "What are the 2–3 priorities to discuss?",
+      rationale: fr ? "Une courte liste garde la conversation orientée vers les décisions." : "A short list keeps the conversation focused on decisions.",
+      field: { key: "priorityItems", label: fr ? "Priorités" : "Priority items", inputType: "prose", required: true, validation: { minItems: 2, maxLength: 240 } },
+    },
+    dashboard: {
+      question: fr ? "Quelle mesure manque ou doit être confirmée?" : "Which metric is missing or still needs confirmation?",
+      rationale: fr ? "Les mesures restent structurées pour éviter toute valeur inventée." : "Metrics remain structured so no value is inferred or invented.",
+      field: { key: "dashboard.metrics", label: fr ? "Mesures du tableau de bord" : "Dashboard metrics", inputType: "metric", required: true },
+    },
+    whatsNext: {
+      question: fr ? "Qu'est-ce qui s'en vient avant la prochaine revue?" : "What is coming up before the next review?",
+      rationale: fr ? "Les prochaines étapes donnent au client une vue claire de la suite." : "Upcoming items give the client a clear view of what happens next.",
+      field: { key: "whatsNext", label: fr ? "Éléments à venir" : "Upcoming items", inputType: "prose", required: true, validation: { minItems: 1, maxLength: 240 } },
+    },
+    questions: {
+      question: fr ? "Le message de clôture est-il prêt pour le client?" : "Is the closing message ready for the client?",
+      rationale: fr ? "Une dernière vérification confirme le ton et la prochaine action." : "A final check confirms the tone and next action.",
+      field: { key: "deckOptions.footerText", label: fr ? "Message de clôture" : "Closing message", inputType: "prose", required: false, validation: { maxLength: 180 } },
+    },
+  };
+  return copy[section];
+}
+
+/** Deterministic interview state. AI can phrase or extract answers, but never controls completeness. */
+export function getSectionReview(
+  section: GuidedSection,
+  content: SlideContent | null,
+  progress: EditorProgress,
+  locale?: Locale | null,
+): SectionReviewSummary {
+  const guidance = getSectionGuidance(section, content, progress, locale);
+  const confirmed = progress.confirmedSections.includes(section);
+  const unconfirmed = guidance.missingFields.filter((field) =>
+    /owner|responsable|due date|échéance|detail|détail|explanation|explication/i.test(field),
+  );
+  const warnings: string[] = [];
+  if ((section === "priorities" && (content?.priorityItems.length ?? 0) > 3) ||
+      (section === "whatsNext" && (content?.whatsNext.length ?? 0) > 5)) {
+    warnings.push(locale === "fr" ? "Le contenu risque d'être trop dense pour la diapositive." : "Content may be too dense for the slide.");
+  }
+
+  const missing = guidance.missingFields.filter((field) => !unconfirmed.includes(field));
+  const copy = taskCopy(section, locale);
+  const firstGap = guidance.missingFields[0] ?? "";
+  let question = copy.question;
+  let field = copy.field;
+  if (section === "title" && /client|nom du client/i.test(firstGap)) {
+    question = locale === "fr" ? "Quel nom de client doit apparaître sur la présentation?" : "What client name should appear on the deck?";
+    field = { key: "title.clientName", label: locale === "fr" ? "Nom du client" : "Client name", inputType: "text", required: true };
+  } else if (section === "dashboard" && firstGap) {
+    question = locale === "fr" ? `Quelle est la valeur confirmée pour « ${firstGap} »?` : `What is the confirmed value for “${firstGap}”?`;
+    field = { key: `dashboard.metrics.${firstGap}`, label: firstGap, inputType: "metric", required: true };
+  } else if (section === "followUps" && firstGap) {
+    question = locale === "fr" ? `Pouvez-vous confirmer : ${firstGap}?` : `Can you confirm: ${firstGap}?`;
+  }
+  const complete = missing.length === 0 && unconfirmed.length === 0;
+  const nextTask: InterviewTask | null = confirmed && complete
+    ? null
+    : {
+        id: `${section}:${guidance.missingFields[0] ?? "review"}`,
+        section,
+        question: complete
+          ? locale === "fr" ? `La diapositive ${getStrings(locale).editor.sections[section]} est prête. Voulez-vous la confirmer?` : `${getStrings(locale).editor.sections[section]} is ready. Would you like to confirm it?`
+          : question,
+        rationale: copy.rationale,
+        fields: complete ? [] : [field],
+        priority: complete ? 10 : 100,
+        complete,
+      };
+
+  return {
+    status: confirmed ? "complete" : complete ? "ready" : "needs_input",
+    missing,
+    unconfirmed,
+    warnings,
+    nextTask,
+  };
 }
 
 /** Deterministic per-slide guidance — no API call, instant on section switch. */

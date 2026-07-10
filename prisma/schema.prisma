@@ -105,6 +105,7 @@ model QbrCycle {
   clientSurveys       ClientSurvey[]
   internalSurveys     InternalSentimentSurvey[]
   editorMessages      EditorMessage[]
+  editorChangeSets    EditorChangeSet[]
 }
 
 // Persisted chat messages for the collaborative slide editor (shared link).
@@ -121,6 +122,37 @@ model EditorMessage {
   createdAt   DateTime @default(now())
 
   qbrCycle QbrCycle @relation(fields: [qbrCycleId], references: [id], onDelete: Cascade)
+}
+
+// Immutable proposal/apply/revert history for the agent-led editor.
+model EditorChangeSet {
+  id             String   @id @default(cuid())
+  qbrCycleId     String
+  status         String   @default("proposed") // proposed | applied | rejected | reverted | stale
+  section        String?
+  actorEmail     String?
+  actorName      String?
+  message        String?
+  operationsJson String   @default("[]")
+  patchesJson    String   @default("[]")
+  fieldChangesJson String @default("[]")
+  beforeSnapshotJson String?
+  afterSnapshotJson  String?
+  baseRevision   DateTime
+  confidence     Float    @default(0.5)
+  explanation    String?
+  reviewJson     String?
+  revertsId      String?
+  appliedAt      DateTime?
+  rejectedAt     DateTime?
+  revertedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  qbrCycle QbrCycle @relation(fields: [qbrCycleId], references: [id], onDelete: Cascade)
+
+  @@index([qbrCycleId, createdAt])
+  @@index([qbrCycleId, status])
 }
 
 model EmailThread {

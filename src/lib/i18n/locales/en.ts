@@ -146,6 +146,20 @@ export const en = {
     askAssistant: "Ask the assistant",
     askAssistantHelper:
       "Use chat for bulk edits or changes that are easier to describe in words.",
+    agentFlow: {
+      nextStep: "Recommended next step",
+      needsInput: "Needs input",
+      ready: "Ready",
+      complete: "Complete",
+      answerNaturally: "Answer in your own words",
+      prepareFields: "Prepare fields",
+      proposedChange: "Proposed change",
+      apply: "Apply change",
+      reject: "Reject",
+      undo: "Undo last agent change",
+      activity: "Conversation & activity",
+      collaboratorResolved: "A collaborator resolved this proposal.",
+    },
     slideChatPlaceholder: "Describe a change to this slide…",
     chatHistory: "Chat history",
     tableColumns: {
