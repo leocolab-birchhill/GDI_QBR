@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
-import { getConnectedAccount, isGraphConfigured } from "@/lib/email/providers/graphAuth";
+import {
+  getConnectedAccount,
+  isGraphConfigured,
+} from "@/lib/email/providers/graphAuth";
 import {
   buildAggregates,
   toDashboardCycle,
@@ -31,7 +34,11 @@ export default async function DashboardPage() {
         approvals: { where: { status: "approved" }, take: 1 },
         emailThreads: {
           include: {
-            messages: { orderBy: { receivedAt: "desc" }, take: 1, select: { receivedAt: true } },
+            messages: {
+              orderBy: { receivedAt: "desc" },
+              take: 1,
+              select: { receivedAt: true },
+            },
           },
         },
       },
@@ -71,8 +78,8 @@ export default async function DashboardPage() {
         </div>
         <div className="rounded-lg border bg-card py-10 text-center text-muted-foreground shadow-sm">
           {s.emptyState}{" "}
-          <a href="/qbr/new" className="text-primary underline">
-            {getStrings(locale).nav.newQbr}
+          <a href="/collaborate" className="text-primary underline">
+            {getStrings(locale).nav.editor}
           </a>
         </div>
       </div>

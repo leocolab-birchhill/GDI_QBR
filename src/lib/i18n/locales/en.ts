@@ -4,7 +4,7 @@ export const en = {
   localeTag: "en-CA",
   toConfirm: "To confirm",
   deck: {
-    titleHeading: "Quarterly Business Review",
+    titleHeading: "Business Review",
     agendaHeading: "AGENDA",
     agendaHeadingCont: "AGENDA (cont.)",
     agendaItems: [
@@ -47,7 +47,7 @@ export const en = {
   },
   editor: {
     welcome:
-      "Hi! I'm your QBR deck editor. We'll walk through each slide together. Describe changes in plain English and I'll update the deck.\n\nTo start, confirm the title slide info or tell me what to change.",
+      "Hi! I'm your BR deck editor. We'll walk through each slide together. Describe changes in plain English and I'll update the deck.\n\nTo start, confirm the title slide info or tell me what to change.",
     guidedIntro: (section: string, prompt: string) =>
       `**Slide: ${section}**\n\n${prompt}\n\nYou can add, edit, delete, or confirm content. Say \"confirm\" to move to the next slide.`,
     sections: {
@@ -60,17 +60,21 @@ export const en = {
       questions: "Questions",
     },
     prompts: {
-      title: "Review the client name, quarter, and meeting date. Would you like to change anything?",
+      title:
+        "Review the client name, quarter, and meeting date. Would you like to change anything?",
       agenda: "Would you like to add, remove, or reorder agenda sections?",
-      followUps: "Add, edit, or remove follow-up items. Include action, status, owner, and due date.",
+      followUps:
+        "Add, edit, or remove follow-up items. Include action, status, owner, and due date.",
       priorities: "Add or edit the 2-3 priority items for this quarter.",
-      dashboard: "Add or update dashboard metrics (Health & Safety, Operational, Financial).",
+      dashboard:
+        "Add or update dashboard metrics (Health & Safety, Operational, Financial).",
       whatsNext: "Add upcoming priorities and planned initiatives.",
       questions: "Confirm this closing slide or add any notes.",
     },
     confirm: "Confirm and continue",
     confirmed: (section: string) => `✓ ${section} confirmed.`,
-    allConfirmed: "All slides confirmed! Your QBR is ready to review or download.",
+    allConfirmed:
+      "All slides confirmed! Your BR is ready to review or download.",
     languageToggle: "Français",
     languageLabel: "English",
     siteLanguage: {
@@ -97,7 +101,8 @@ export const en = {
     latestDeckVersion: (v: number) => `Latest deck: v${v}`,
     downloadLatestDeck: "Download latest deck",
     downloadDeck: (name: string, v: number) => `⬇ Download ${name} (v${v})`,
-    editingSlide: (current: number, total: number) => `Editing slide ${current} of ${total}`,
+    editingSlide: (current: number, total: number) =>
+      `Editing slide ${current} of ${total}`,
     slideTitles: {
       title: "Title",
       agenda: "Agenda",
@@ -117,7 +122,8 @@ export const en = {
       questions: "Edit closing slide",
     },
     formHelpers: {
-      title: "Update the client name and meeting dates shown on the title slide.",
+      title:
+        "Update the client name and meeting dates shown on the title slide.",
       agenda: "Update the agenda sections shown on this slide.",
       followUps: "Update the follow-up items shown on this slide.",
       priorities: "Update the priority items shown on this slide.",
@@ -138,7 +144,8 @@ export const en = {
     addFollowUp: "+ Add follow-up",
     assistantSuggestions: "Assistant suggestions",
     askAssistant: "Ask the assistant",
-    askAssistantHelper: "Use chat for bulk edits or changes that are easier to describe in words.",
+    askAssistantHelper:
+      "Use chat for bulk edits or changes that are easier to describe in words.",
     slideChatPlaceholder: "Describe a change to this slide…",
     chatHistory: "Chat history",
     tableColumns: {
@@ -153,15 +160,33 @@ export const en = {
       followUps: [
         "Add 2–3 priority follow-ups",
         'Set missing owners to "To confirm"',
-        "Set missing due dates to next QBR",
+        "Set missing due dates to next BR",
         "Mark completed items as closed",
       ],
-      title: ["Change the meeting date to <date>", "Update the client name to <name>"],
-      agenda: ["Reorder the agenda so <section> comes before <section>", "Remove <section> from the agenda"],
-      priorities: ["Add a priority: <title> - <why it matters>", "Rewrite priority <name> to say <new wording>"],
-      dashboard: ["Set <metric> to <value>", "Add metric <metric> under <group> with value <value>"],
-      whatsNext: ["Add a what's next item: <title> - <detail>", "Remove the upcoming item <name>"],
-      questions: ["Add a closing note: <note>", "This closing slide looks good"],
+      title: [
+        "Change the meeting date to <date>",
+        "Update the client name to <name>",
+      ],
+      agenda: [
+        "Reorder the agenda so <section> comes before <section>",
+        "Remove <section> from the agenda",
+      ],
+      priorities: [
+        "Add a priority: <title> - <why it matters>",
+        "Rewrite priority <name> to say <new wording>",
+      ],
+      dashboard: [
+        "Set <metric> to <value>",
+        "Add metric <metric> under <group> with value <value>",
+      ],
+      whatsNext: [
+        "Add a what's next item: <title> - <detail>",
+        "Remove the upcoming item <name>",
+      ],
+      questions: [
+        "Add a closing note: <note>",
+        "This closing slide looks good",
+      ],
     },
     basicMode:
       "Basic editing mode. No OpenAI key configured — the editor uses keyword matching. Set OPENAI_API_KEY for full natural-language editing.",
@@ -175,21 +200,21 @@ export const en = {
         "Update dashboard metrics, priorities, what's next, and follow-ups",
         "Add or remove items, reword text, change follow-up status",
         "Hide built-in slides, add custom slides, and hide dashboard sections",
-        "Set meeting dates (this QBR and next)",
+        "Set meeting dates (this BR and next)",
         "Toggle page numbers, footer text, and a title tag",
       ],
       cantItems: [
         "Change fonts, colors, logos, or slide layout",
         "Upload a custom .pptx",
-        "Invent metric numbers — provide a value or it stays \"To confirm\"",
+        'Invent metric numbers — provide a value or it stays "To confirm"',
       ],
     },
   },
   create: {
-    title: "Create New Client / QBR",
-    subtitle: "Set up a client account and generate a blank QBR deck.",
+    title: "Create New Client / BR",
+    subtitle: "Set up a client account and generate a blank BR deck.",
     clientName: "Client name",
-    targetDate: "QBR target date",
+    targetDate: "BR target date",
     quarter: "Quarter",
     year: "Year",
     owners: "Owner / stakeholders",
@@ -200,34 +225,36 @@ export const en = {
     languageEn: "English",
     metadata: "Metadata (optional)",
     metadataHint: "Industry, notes, etc.",
-    submit: "Create & generate QBR",
+    submit: "Create & generate BR",
     existingClient: "Existing client",
     selectClient: "Select a client…",
-    newBlankQbr: "New blank QBR for this client",
+    newBlankQbr: "New blank BR for this client",
     or: "or",
     createNewClient: "Create new client",
     success: (name: string, q: string, y: number) =>
-      `Blank QBR created for ${name} — ${q} ${y}. Redirecting to editor…`,
+      `Blank BR created for ${name} — ${q} ${y}. Redirecting to editor…`,
     error: "Creation failed. Please try again.",
     wizard: {
-      heading: "Start a QBR deck",
-      subtitle: "Select an existing client or create a new one, then add the client logo before we open the editor.",
+      heading: "Start a BR deck",
+      subtitle:
+        "Select an existing client or create a new one, then add the client logo before we open the editor.",
       chooseClient: "Select client",
       chooseClientHint: "Choose an existing account.",
       newClientCta: "Create new client",
       selectClientCta: "Select existing client",
       actionTitle: "What would you like to do?",
-      openLastSaved: "Open last saved QBR",
+      openLastSaved: "Open last saved BR",
       openLastSavedHint: (q: string, y: number, v: number | null) =>
         v != null ? `${q} ${y} · latest deck v${v}` : `${q} ${y}`,
-      generateFresh: "Generate a fresh QBR",
+      generateFresh: "Generate a fresh BR",
       generateFreshHint: "Start a new blank deck for this client.",
-      noSavedQbr: "No saved QBR yet for this client — we'll start a fresh one.",
-      freshQuarterLabel: "Quarter for the new QBR",
+      noSavedQbr: "No saved BR yet for this client — we'll start a fresh one.",
+      freshQuarterLabel: "Period for the new BR",
       quarterTaken: (client: string, q: string, y: number) =>
-        `A QBR already exists for ${client} ${q} ${y}. Open it instead of creating a duplicate.`,
-      quarterAvailable: (q: string, y: number) => `No QBR yet for ${q} ${y} — a fresh deck will be created.`,
-      openExisting: "Open this QBR",
+        `A BR already exists for ${client} ${q} ${y}. Open it instead of creating a duplicate.`,
+      quarterAvailable: (q: string, y: number) =>
+        `No BR yet for ${q} ${y} — a fresh deck will be created.`,
+      openExisting: "Open this BR",
       logoTitle: "Add the client logo",
       logoHint:
         "Optional. The client logo appears in the top-right co-branding lockup (client logo │ GDI) on every slide and is saved to the client profile for future decks. PNG, JPG, or SVG up to 5 MB.",
@@ -242,35 +269,36 @@ export const en = {
   },
   email: {
     createdQbr: (client: string, q: string, y: number) =>
-      `Created: ${client} ${q} ${y} QBR.`,
+      `Created: ${client} ${q} ${y} BR.`,
     stillNeed: "I still need:",
     replyUnknown: 'Reply with whatever you know. "Unknown" is fine.',
     editorLink: "Open collaborative editor",
-    createClientSubject: "New QBR client",
+    createClientSubject: "New BR client",
     createClientBody: (client: string) =>
-      `To create a new client "${client}", I need:\n1. QBR target date\n2. Owner / stakeholders\n3. Quarter and year\n\nReply with this info or use the collaborative editor.`,
+      `To create a new client "${client}", I need:\n1. BR target date\n2. Owner / stakeholders\n3. Quarter and year\n\nReply with this info or use the collaborative editor.`,
   },
   dashboard: {
-    title: "QBR Dashboard",
-    subtitle: "Ops overview — what needs attention across all Quarterly Business Reviews.",
-    startViaEmail: "+ Start a QBR via email simulator",
-    emptyTitle: "QBR Dashboard",
-    emptyState: "No QBRs yet. Run the seed script or use the email simulator.",
+    title: "BR Dashboard",
+    subtitle:
+      "Ops overview — what needs attention across all Business Reviews.",
+    startViaEmail: "+ Start a BR via email simulator",
+    emptyTitle: "BR Dashboard",
+    emptyState: "No BRs yet. Run the seed script or use the email simulator.",
     filters: "Filters",
     searchPlaceholder: "Search client…",
     allStatuses: "All statuses",
     allVps: "All VPs",
     clearFilters: "Clear filters",
-    noMatch: "No QBRs match your filters.",
+    noMatch: "No BRs match your filters.",
     showAll: "Show all",
     attentionFilters: {
-      all: "All QBRs",
+      all: "All BRs",
       needs_attention: "Needs attention",
       vp_review: "Awaiting VP",
       meeting_this_week: "Meeting this week",
     },
     summary: {
-      active: "Active QBRs",
+      active: "Active BRs",
       highPriority: "High priority",
       awaitingVp: "Awaiting VP",
       meetingsThisWeek: "Meetings this week",
@@ -283,7 +311,7 @@ export const en = {
     graphNotConfigured: "Graph credentials not configured",
     connectMailbox: "Connect mailbox",
     attentionQueue: "Attention queue",
-    attentionQueueHint: "Active QBRs sorted by urgency — tackle these first.",
+    attentionQueueHint: "Active BRs sorted by urgency — tackle these first.",
     meeting: "Meeting",
     cadence: "Cadence",
     missingInfo: "Missing info",
@@ -307,8 +335,10 @@ export const en = {
     },
     attentionLabels: {
       vp_review: "Awaiting VP approval",
-      missingInfo: (n: number) => `${n} open missing-info item${n === 1 ? "" : "s"}`,
-      unconfirmedMetrics: (n: number) => `${n} unconfirmed metric${n === 1 ? "" : "s"}`,
+      missingInfo: (n: number) =>
+        `${n} open missing-info item${n === 1 ? "" : "s"}`,
+      unconfirmedMetrics: (n: number) =>
+        `${n} unconfirmed metric${n === 1 ? "" : "s"}`,
       meetingToday: "Meeting today",
       meetingInDays: (n: number) => `Meeting in ${n} day${n === 1 ? "" : "s"}`,
       noDraft: "No deck generated yet",
@@ -332,7 +362,7 @@ export const en = {
     users: "Users",
     emailSim: "Email Simulator",
     jobs: "Jobs",
-    newQbr: "New QBR",
+    newQbr: "New BR",
     editor: "Editor",
     language: "Language",
   },
@@ -346,7 +376,7 @@ export const en = {
     priorityItems: "2-3 priority items",
     dashboardMetrics: "Dashboard metrics",
     upcomingItems: "What's Next items",
-    nextQbrDate: "Proposed next QBR date",
+    nextQbrDate: "Proposed next BR date",
   },
 } as const;
 

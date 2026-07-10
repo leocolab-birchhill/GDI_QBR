@@ -29,7 +29,9 @@ export async function findOrCreateAccount(clientName: string) {
   if (existing) return existing;
   // Case-insensitive fallback (SQLite default collation is case-sensitive for some).
   const all = await prisma.account.findMany();
-  const match = all.find((a) => a.clientName.toLowerCase() === clientName.toLowerCase());
+  const match = all.find(
+    (a) => a.clientName.toLowerCase() === clientName.toLowerCase(),
+  );
   if (match) return match;
   return prisma.account.create({ data: { clientName } });
 }
@@ -44,7 +46,11 @@ export async function findOrCreateCycle(args: {
   previousQbrNotes?: string | null;
 }) {
   const existing = await prisma.qbrCycle.findFirst({
-    where: { accountId: args.accountId, quarter: args.quarter, year: args.year },
+    where: {
+      accountId: args.accountId,
+      quarter: args.quarter,
+      year: args.year,
+    },
   });
   if (existing) return existing;
   const cycle = await prisma.qbrCycle.create({
@@ -58,13 +64,22 @@ export async function findOrCreateCycle(args: {
       status: "DRAFT_CREATED",
     },
   });
-  await audit({ entityType: "QbrCycle", entityId: cycle.id, action: "qbr.created", metadata: args });
+  await audit({
+    entityType: "QbrCycle",
+    entityId: cycle.id,
+    action: "qbr.created",
+    metadata: args,
+  });
   return cycle;
 }
 
 export async function setStatus(qbrCycleId: string, status: QbrStatus) {
   await prisma.qbrCycle.update({ where: { id: qbrCycleId }, data: { status } });
-  await audit({ entityType: "QbrCycle", entityId: qbrCycleId, action: `status.${status}` });
+  await audit({
+    entityType: "QbrCycle",
+    entityId: qbrCycleId,
+    action: `status.${status}`,
+  });
 }
 
 /** Default missing-info checklist created when a QBR starts. */
@@ -82,14 +97,21 @@ export async function createMissingInfoChecklist(qbrCycleId: string) {
     });
     if (!exists) {
       await prisma.missingInfoRequest.create({
-        data: { qbrCycleId, field: it.field, question: it.question, status: "Open" },
+        data: {
+          qbrCycleId,
+          field: it.field,
+          question: it.question,
+          status: "Open",
+        },
       });
     }
   }
 }
 
 /** Parse the stored deck-options JSON blob into an object (never throws). */
-export function readDeckOptions(deckOptionsJson?: string | null): DeckOptions & Record<string, unknown> {
+export function readDeckOptions(
+  deckOptionsJson?: string | null,
+): DeckOptions & Record<string, unknown> {
   if (!deckOptionsJson) return {};
   try {
     const o = JSON.parse(deckOptionsJson);
@@ -100,7 +122,10 @@ export function readDeckOptions(deckOptionsJson?: string | null): DeckOptions & 
 }
 
 /** Merge a partial set of deck options into the cycle's stored JSON blob. */
-async function mergeDeckOptions(qbrCycleId: string, patch: Record<string, unknown>): Promise<void> {
+async function mergeDeckOptions(
+  qbrCycleId: string,
+  patch: Record<string, unknown>,
+): Promise<void> {
   const cycle = await prisma.qbrCycle.findUnique({ where: { id: qbrCycleId } });
   const current = readDeckOptions(cycle?.deckOptionsJson);
   const next = { ...current, ...patch };
@@ -130,7 +155,8 @@ function normalizeGroup(group?: string): string {
   const raw = group.trim();
   const g = group.toLowerCase();
   if (g.includes("safety") || g.includes("health")) return "Health & Safety";
-  if (g.includes("financ") || g.includes("billing") || g.includes("invoice")) return "Financial";
+  if (g.includes("financ") || g.includes("billing") || g.includes("invoice"))
+    return "Financial";
   if (g.includes("operat")) return "Operational";
   return raw || "Operational";
 }
@@ -141,7 +167,13 @@ function normalizeGroup(group?: string): string {
  * "Captured" section so we never echo unchanged items or repeat a metric).
  */
 export interface ApplyExtractionResult {
-  counts: { commitments: number; priorities: number; metrics: number; upcoming: number; answers: number };
+  counts: {
+    commitments: number;
+    priorities: number;
+    metrics: number;
+    upcoming: number;
+    answers: number;
+  };
   changed: string[];
 }
 
@@ -160,16 +192,26 @@ export async function applyExtraction(
   ex: ExtractionResult,
   actorEmail?: string,
 ): Promise<ApplyExtractionResult> {
-  const counts = { commitments: 0, priorities: 0, metrics: 0, upcoming: 0, answers: 0 };
+  const counts = {
+    commitments: 0,
+    priorities: 0,
+    metrics: 0,
+    upcoming: 0,
+    answers: 0,
+  };
   const changed: string[] = [];
 
-  const [existingCommitments, existingPriorities, existingMetrics, existingUpcoming] =
-    await Promise.all([
-      prisma.commitment.findMany({ where: { qbrCycleId } }),
-      prisma.priorityItem.findMany({ where: { qbrCycleId } }),
-      prisma.dashboardMetric.findMany({ where: { qbrCycleId } }),
-      prisma.upcomingItem.findMany({ where: { qbrCycleId } }),
-    ]);
+  const [
+    existingCommitments,
+    existingPriorities,
+    existingMetrics,
+    existingUpcoming,
+  ] = await Promise.all([
+    prisma.commitment.findMany({ where: { qbrCycleId } }),
+    prisma.priorityItem.findMany({ where: { qbrCycleId } }),
+    prisma.dashboardMetric.findMany({ where: { qbrCycleId } }),
+    prisma.upcomingItem.findMany({ where: { qbrCycleId } }),
+  ]);
 
   for (const c of ex.commitments) {
     const safe = await rewriteClientSafe({ rawText: c.rawInput || c.action });
@@ -180,7 +222,11 @@ export async function applyExtraction(
       if (nextStatus !== match.status || nextOwner !== match.owner) {
         await prisma.commitment.update({
           where: { id: match.id },
-          data: { status: nextStatus, owner: nextOwner, dueDate: parseDate(c.dueDate) ?? match.dueDate },
+          data: {
+            status: nextStatus,
+            owner: nextOwner,
+            dueDate: parseDate(c.dueDate) ?? match.dueDate,
+          },
         });
         changed.push(`Follow-up updated: ${c.action} [${nextStatus}]`);
         counts.commitments++;
@@ -246,7 +292,14 @@ export async function applyExtraction(
       continue;
     }
     const created = await prisma.dashboardMetric.create({
-      data: { qbrCycleId, group, label: m.label, value, isConfirmed, source: "email" },
+      data: {
+        qbrCycleId,
+        group,
+        label: m.label,
+        value,
+        isConfirmed,
+        source: "email",
+      },
     });
     existingMetrics.push(created);
     changed.push(`${group}: ${m.label} = ${value}`);
@@ -277,7 +330,10 @@ export async function applyExtraction(
       where: { qbrCycleId, field: a.field, status: "Open" },
     });
     if (req) {
-      await prisma.missingInfoRequest.update({ where: { id: req.id }, data: { status: "Answered" } });
+      await prisma.missingInfoRequest.update({
+        where: { id: req.id },
+        data: { status: "Answered" },
+      });
       changed.push(`Answered: ${req.question}`);
       counts.answers++;
     }
@@ -287,17 +343,29 @@ export async function applyExtraction(
   // "when is the meeting?" and "when's the next QBR?" become answerable facts.
   const cycle = await prisma.qbrCycle.findUnique({ where: { id: qbrCycleId } });
   const meetingDate = parseDate(ex.meetingDate);
-  if (meetingDate && cycle && (!cycle.meetingDate || cycle.meetingDate.getTime() !== meetingDate.getTime())) {
-    await prisma.qbrCycle.update({ where: { id: qbrCycleId }, data: { meetingDate } });
+  if (
+    meetingDate &&
+    cycle &&
+    (!cycle.meetingDate ||
+      cycle.meetingDate.getTime() !== meetingDate.getTime())
+  ) {
+    await prisma.qbrCycle.update({
+      where: { id: qbrCycleId },
+      data: { meetingDate },
+    });
     changed.push(`Meeting date: ${meetingDate.toDateString()}`);
   }
   const nextMeetingDate = parseDate(ex.nextMeetingDate);
   if (
     nextMeetingDate &&
     cycle &&
-    (!cycle.nextMeetingDate || cycle.nextMeetingDate.getTime() !== nextMeetingDate.getTime())
+    (!cycle.nextMeetingDate ||
+      cycle.nextMeetingDate.getTime() !== nextMeetingDate.getTime())
   ) {
-    await prisma.qbrCycle.update({ where: { id: qbrCycleId }, data: { nextMeetingDate } });
+    await prisma.qbrCycle.update({
+      where: { id: qbrCycleId },
+      data: { nextMeetingDate },
+    });
     await prisma.missingInfoRequest.updateMany({
       where: { qbrCycleId, field: "nextQbrDate", status: "Open" },
       data: { status: "Answered" },
@@ -310,7 +378,11 @@ export async function applyExtraction(
     entityId: qbrCycleId,
     action: "ai.extraction.applied",
     actorEmail,
-    metadata: { counts, confidence: ex.confidence, needsHumanReview: ex.needsHumanReview },
+    metadata: {
+      counts,
+      confidence: ex.confidence,
+      needsHumanReview: ex.needsHumanReview,
+    },
   });
 
   return { counts, changed };
@@ -322,7 +394,10 @@ export async function applyExtraction(
  * the chat can confirm them. Unknown/duplicate targets are matched by
  * normalized label/title; missing targets create new items where it makes sense.
  */
-export async function applySlideEdits(qbrCycleId: string, operations: SlideEditOp[]): Promise<string[]> {
+export async function applySlideEdits(
+  qbrCycleId: string,
+  operations: SlideEditOp[],
+): Promise<string[]> {
   const changes: string[] = [];
 
   for (const op of operations) {
@@ -331,7 +406,9 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
         if (!op.label) break;
         const value = op.value?.trim() || TO_CONFIRM;
         const group = normalizeGroup(op.group ?? undefined);
-        const metrics = await prisma.dashboardMetric.findMany({ where: { qbrCycleId } });
+        const metrics = await prisma.dashboardMetric.findMany({
+          where: { qbrCycleId },
+        });
         const match = findExisting(metrics, op.label, (m) => m.label);
         if (match) {
           await prisma.dashboardMetric.update({
@@ -341,7 +418,14 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
           changes.push(`Updated metric "${op.label}" → ${value}`);
         } else {
           await prisma.dashboardMetric.create({
-            data: { qbrCycleId, group, label: op.label, value, isConfirmed: value !== TO_CONFIRM, source: "editor" },
+            data: {
+              qbrCycleId,
+              group,
+              label: op.label,
+              value,
+              isConfirmed: value !== TO_CONFIRM,
+              source: "editor",
+            },
           });
           changes.push(`Added metric "${op.label}" (${group}) = ${value}`);
         }
@@ -349,7 +433,9 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
       }
       case "remove_metric": {
         if (!op.label) break;
-        const metrics = await prisma.dashboardMetric.findMany({ where: { qbrCycleId } });
+        const metrics = await prisma.dashboardMetric.findMany({
+          where: { qbrCycleId },
+        });
         const match = findExisting(metrics, op.label, (m) => m.label);
         if (match) {
           await prisma.dashboardMetric.delete({ where: { id: match.id } });
@@ -359,12 +445,16 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
       }
       case "add_priority": {
         if (!op.title) break;
-        const priorities = await prisma.priorityItem.findMany({ where: { qbrCycleId } });
+        const priorities = await prisma.priorityItem.findMany({
+          where: { qbrCycleId },
+        });
         if (findExisting(priorities, op.title, (p) => p.title)) break;
         // Honor the user's exact wording. Only an explicitly supplied explanation
         // is stored as body text; when none is given we leave a clean "To confirm"
         // sentinel rather than fabricating prose from the title.
-        const safe = op.explanation?.trim() ? op.explanation.trim() : TO_CONFIRM;
+        const safe = op.explanation?.trim()
+          ? op.explanation.trim()
+          : TO_CONFIRM;
         await prisma.priorityItem.create({
           data: {
             qbrCycleId,
@@ -380,7 +470,9 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
       }
       case "reword_priority": {
         if (!op.title) break;
-        const priorities = await prisma.priorityItem.findMany({ where: { qbrCycleId } });
+        const priorities = await prisma.priorityItem.findMany({
+          where: { qbrCycleId },
+        });
         const match = findExisting(priorities, op.title, (p) => p.title);
         // Rename the priority to the user's exact new wording. When the request
         // carries replacement text, treat it as the new TITLE verbatim (the
@@ -388,15 +480,22 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
         if (match && op.explanation?.trim()) {
           await prisma.priorityItem.update({
             where: { id: match.id },
-            data: { title: op.explanation.trim(), rawInput: op.explanation.trim() },
+            data: {
+              title: op.explanation.trim(),
+              rawInput: op.explanation.trim(),
+            },
           });
-          changes.push(`Reworded priority "${match.title}" → "${op.explanation.trim()}"`);
+          changes.push(
+            `Reworded priority "${match.title}" → "${op.explanation.trim()}"`,
+          );
         }
         break;
       }
       case "remove_priority": {
         if (!op.title) break;
-        const priorities = await prisma.priorityItem.findMany({ where: { qbrCycleId } });
+        const priorities = await prisma.priorityItem.findMany({
+          where: { qbrCycleId },
+        });
         const match = findExisting(priorities, op.title, (p) => p.title);
         if (match) {
           await prisma.priorityItem.delete({ where: { id: match.id } });
@@ -406,18 +505,29 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
       }
       case "add_upcoming": {
         if (!op.title) break;
-        const upcoming = await prisma.upcomingItem.findMany({ where: { qbrCycleId } });
+        const upcoming = await prisma.upcomingItem.findMany({
+          where: { qbrCycleId },
+        });
         if (findExisting(upcoming, op.title, (u) => u.title)) break;
         const safe = op.detail?.trim() ? op.detail.trim() : TO_CONFIRM;
         await prisma.upcomingItem.create({
-          data: { qbrCycleId, title: op.title, rawInput: op.title, clientReadyText: safe, timing: op.detail ?? null, sortOrder: upcoming.length },
+          data: {
+            qbrCycleId,
+            title: op.title,
+            rawInput: op.title,
+            clientReadyText: safe,
+            timing: op.detail ?? null,
+            sortOrder: upcoming.length,
+          },
         });
         changes.push(`Added what's-next item "${op.title}"`);
         break;
       }
       case "remove_upcoming": {
         if (!op.title) break;
-        const upcoming = await prisma.upcomingItem.findMany({ where: { qbrCycleId } });
+        const upcoming = await prisma.upcomingItem.findMany({
+          where: { qbrCycleId },
+        });
         const match = findExisting(upcoming, op.title, (u) => u.title);
         if (match) {
           await prisma.upcomingItem.delete({ where: { id: match.id } });
@@ -427,9 +537,12 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
       }
       case "add_commitment": {
         if (!op.action) break;
-        const commitments = await prisma.commitment.findMany({ where: { qbrCycleId } });
+        const commitments = await prisma.commitment.findMany({
+          where: { qbrCycleId },
+        });
         if (findExisting(commitments, op.action, (c) => c.action)) break;
-        const safe = (await rewriteClientSafe({ rawText: op.action })).clientReadyText;
+        const safe = (await rewriteClientSafe({ rawText: op.action }))
+          .clientReadyText;
         await prisma.commitment.create({
           data: {
             qbrCycleId,
@@ -448,7 +561,9 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
       }
       case "set_commitment_status": {
         if (!op.action) break;
-        const commitments = await prisma.commitment.findMany({ where: { qbrCycleId } });
+        const commitments = await prisma.commitment.findMany({
+          where: { qbrCycleId },
+        });
         const match = findExisting(commitments, op.action, (c) => c.action);
         if (match) {
           await prisma.commitment.update({
@@ -459,13 +574,17 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
               dueDate: parseDate(op.date) ?? match.dueDate,
             },
           });
-          changes.push(`Updated follow-up "${match.action}" → ${op.status || match.status}`);
+          changes.push(
+            `Updated follow-up "${match.action}" → ${op.status || match.status}`,
+          );
         }
         break;
       }
       case "remove_commitment": {
         if (!op.action) break;
-        const commitments = await prisma.commitment.findMany({ where: { qbrCycleId } });
+        const commitments = await prisma.commitment.findMany({
+          where: { qbrCycleId },
+        });
         const match = findExisting(commitments, op.action, (c) => c.action);
         if (match) {
           await prisma.commitment.delete({ where: { id: match.id } });
@@ -476,9 +595,14 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
       case "set_client_name": {
         const name = (op.value ?? op.label ?? "").trim();
         if (!name) break;
-        const cycle = await prisma.qbrCycle.findUnique({ where: { id: qbrCycleId } });
+        const cycle = await prisma.qbrCycle.findUnique({
+          where: { id: qbrCycleId },
+        });
         if (!cycle) break;
-        await prisma.account.update({ where: { id: cycle.accountId }, data: { clientName: name } });
+        await prisma.account.update({
+          where: { id: cycle.accountId },
+          data: { clientName: name },
+        });
         changes.push(`Set client name → "${name}"`);
         break;
       }
@@ -499,7 +623,10 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
       case "set_meeting_date": {
         const d = parseDate(op.date);
         if (d) {
-          await prisma.qbrCycle.update({ where: { id: qbrCycleId }, data: { meetingDate: d } });
+          await prisma.qbrCycle.update({
+            where: { id: qbrCycleId },
+            data: { meetingDate: d },
+          });
           changes.push(`Set meeting date → ${d.toDateString()}`);
         }
         break;
@@ -507,7 +634,10 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
       case "set_next_meeting_date": {
         const d = parseDate(op.date);
         if (d) {
-          await prisma.qbrCycle.update({ where: { id: qbrCycleId }, data: { nextMeetingDate: d } });
+          await prisma.qbrCycle.update({
+            where: { id: qbrCycleId },
+            data: { nextMeetingDate: d },
+          });
           await prisma.missingInfoRequest.updateMany({
             where: { qbrCycleId, field: "nextQbrDate", status: "Open" },
             data: { status: "Answered" },
@@ -521,34 +651,53 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
         if (!title) break;
         const kind = op.kind === "table" ? "table" : "prose";
         const body = (op.body ?? op.detail ?? "").trim();
-        const afterSection = (GUIDED_SECTIONS as readonly string[]).includes(op.afterSection ?? "")
+        const afterSection = (GUIDED_SECTIONS as readonly string[]).includes(
+          op.afterSection ?? "",
+        )
           ? (op.afterSection as string)
           : "whatsNext";
         await mutateDeckLayout(qbrCycleId, (layout) => {
-          layout.customSlides.push({ id: newCustomSlideId(), title, kind, body, afterSection });
+          layout.customSlides.push({
+            id: newCustomSlideId(),
+            title,
+            kind,
+            body,
+            afterSection,
+          });
         });
         changes.push(`Added a new ${kind} slide "${title}"`);
         break;
       }
       case "edit_slide": {
-        const cycle = await prisma.qbrCycle.findUnique({ where: { id: qbrCycleId } });
+        const cycle = await prisma.qbrCycle.findUnique({
+          where: { id: qbrCycleId },
+        });
         const layout = readDeckLayout(cycle?.deckLayoutJson);
-        const match = findCustomSlide(layout, { slideId: op.slideId, title: op.title });
+        const match = findCustomSlide(layout, {
+          slideId: op.slideId,
+          title: op.title,
+        });
         if (!match) break;
         await mutateDeckLayout(qbrCycleId, (l) => {
           const slide = findCustomSlide(l, { slideId: match.id });
           if (!slide) return;
           if (op.value?.trim()) slide.title = op.value.trim();
-          if (op.body != null || op.detail != null) slide.body = (op.body ?? op.detail ?? "").trim();
+          if (op.body != null || op.detail != null)
+            slide.body = (op.body ?? op.detail ?? "").trim();
           if (op.kind === "prose" || op.kind === "table") slide.kind = op.kind;
         });
         changes.push(`Updated the "${match.title}" slide`);
         break;
       }
       case "remove_slide": {
-        const cycle = await prisma.qbrCycle.findUnique({ where: { id: qbrCycleId } });
+        const cycle = await prisma.qbrCycle.findUnique({
+          where: { id: qbrCycleId },
+        });
         const layout = readDeckLayout(cycle?.deckLayoutJson);
-        const match = findCustomSlide(layout, { slideId: op.slideId, title: op.title });
+        const match = findCustomSlide(layout, {
+          slideId: op.slideId,
+          title: op.title,
+        });
         if (match) {
           await mutateDeckLayout(qbrCycleId, (l) => {
             l.customSlides = l.customSlides.filter((s) => s.id !== match.id);
@@ -560,23 +709,33 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
         const section = resolveSectionRef(op.section ?? op.title);
         if (section && HIDEABLE_SECTIONS.includes(section)) {
           await mutateDeckLayout(qbrCycleId, (l) => {
-            if (!l.hiddenSections.includes(section)) l.hiddenSections.push(section);
+            if (!l.hiddenSections.includes(section))
+              l.hiddenSections.push(section);
           });
-          changes.push(`Hid the ${section} slide (its content is kept and can be shown again)`);
+          changes.push(
+            `Hid the ${section} slide (its content is kept and can be shown again)`,
+          );
         }
         break;
       }
       case "move_slide": {
         const afterSection = resolveSectionRef(op.afterSection);
-        const cycle = await prisma.qbrCycle.findUnique({ where: { id: qbrCycleId } });
+        const cycle = await prisma.qbrCycle.findUnique({
+          where: { id: qbrCycleId },
+        });
         const layout = readDeckLayout(cycle?.deckLayoutJson);
-        const custom = findCustomSlide(layout, { slideId: op.slideId, title: op.title });
+        const custom = findCustomSlide(layout, {
+          slideId: op.slideId,
+          title: op.title,
+        });
         if (custom && afterSection) {
           await mutateDeckLayout(qbrCycleId, (l) => {
             const slide = findCustomSlide(l, { slideId: custom.id });
             if (slide) slide.afterSection = afterSection;
           });
-          changes.push(`Moved the "${custom.title}" slide after ${afterSection}`);
+          changes.push(
+            `Moved the "${custom.title}" slide after ${afterSection}`,
+          );
           break;
         }
         const section = resolveSectionRef(op.section ?? op.title);
@@ -606,7 +765,9 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
           l.hiddenSections = l.hiddenSections.filter((s) => s !== section);
           if (hidden) l.hiddenSections.push(section);
         });
-        changes.push(hidden ? `Hid the ${section} slide` : `Restored the ${section} slide`);
+        changes.push(
+          hidden ? `Hid the ${section} slide` : `Restored the ${section} slide`,
+        );
         break;
       }
       case "add_dashboard_group": {
@@ -623,7 +784,11 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
             l.hiddenDashboardGroups = l.hiddenDashboardGroups.filter(
               (g) => g.toLowerCase() !== name.toLowerCase(),
             );
-            if (!l.extraDashboardGroups.some((g) => g.toLowerCase() === name.toLowerCase())) {
+            if (
+              !l.extraDashboardGroups.some(
+                (g) => g.toLowerCase() === name.toLowerCase(),
+              )
+            ) {
               l.extraDashboardGroups.push(name);
             }
           }
@@ -638,14 +803,24 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
         if (standard) {
           // Standard groups are hidden (reversible), never deleted.
           await mutateDeckLayout(qbrCycleId, (l) => {
-            if (!l.hiddenDashboardGroups.some((g) => g.toLowerCase() === standard.toLowerCase())) {
+            if (
+              !l.hiddenDashboardGroups.some(
+                (g) => g.toLowerCase() === standard.toLowerCase(),
+              )
+            ) {
               l.hiddenDashboardGroups.push(standard);
             }
           });
-          changes.push(`Removed the ${standard} dashboard section (metrics kept, can be restored)`);
+          changes.push(
+            `Removed the ${standard} dashboard section (metrics kept, can be restored)`,
+          );
         } else {
-          const metrics = await prisma.dashboardMetric.findMany({ where: { qbrCycleId } });
-          const targets = metrics.filter((m) => m.group.toLowerCase() === name.toLowerCase());
+          const metrics = await prisma.dashboardMetric.findMany({
+            where: { qbrCycleId },
+          });
+          const targets = metrics.filter(
+            (m) => m.group.toLowerCase() === name.toLowerCase(),
+          );
           for (const m of targets) {
             await prisma.dashboardMetric.delete({ where: { id: m.id } });
           }
@@ -670,20 +845,31 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
           : /left/.test(v)
             ? "bottom-left"
             : "bottom-right";
-        await mergeDeckOptions(qbrCycleId, { pageNumbers: on, pageNumberPosition: position });
-        changes.push(on ? `Turned on page numbers (${position})` : "Turned off page numbers");
+        await mergeDeckOptions(qbrCycleId, {
+          pageNumbers: on,
+          pageNumberPosition: position,
+        });
+        changes.push(
+          on
+            ? `Turned on page numbers (${position})`
+            : "Turned off page numbers",
+        );
         break;
       }
       case "set_footer": {
         const text = (op.value ?? op.detail ?? "").trim();
         await mergeDeckOptions(qbrCycleId, { footerText: text || null });
-        changes.push(text ? `Set footer text → "${text}"` : "Removed footer text");
+        changes.push(
+          text ? `Set footer text → "${text}"` : "Removed footer text",
+        );
         break;
       }
       case "set_title_tag": {
         const text = (op.value ?? op.label ?? "").trim();
         await mergeDeckOptions(qbrCycleId, { titleTag: text || null });
-        changes.push(text ? `Added tag "${text}" to every slide` : "Removed slide tag");
+        changes.push(
+          text ? `Added tag "${text}" to every slide` : "Removed slide tag",
+        );
         break;
       }
       case "set_deck_option": {
@@ -696,7 +882,12 @@ export async function applySlideEdits(qbrCycleId: string, operations: SlideEditO
   }
 
   if (changes.length) {
-    await audit({ entityType: "QbrCycle", entityId: qbrCycleId, action: "slides.edited", metadata: { changes } });
+    await audit({
+      entityType: "QbrCycle",
+      entityId: qbrCycleId,
+      action: "slides.edited",
+      metadata: { changes },
+    });
   }
   return changes;
 }
@@ -705,7 +896,14 @@ export async function getQbrFull(qbrCycleId: string) {
   return prisma.qbrCycle.findUnique({
     where: { id: qbrCycleId },
     include: {
-      account: { include: { vpOwner: true, director: true, accountManager: true, contacts: true } },
+      account: {
+        include: {
+          vpOwner: true,
+          director: true,
+          accountManager: true,
+          contacts: true,
+        },
+      },
       createdBy: true,
       commitments: { orderBy: { createdAt: "asc" } },
       priorityItems: { orderBy: { sortOrder: "asc" } },
@@ -716,16 +914,21 @@ export async function getQbrFull(qbrCycleId: string) {
       approvals: { orderBy: { createdAt: "desc" } },
       clientSurveys: true,
       internalSurveys: true,
-      emailThreads: { include: { messages: { orderBy: { receivedAt: "asc" } } } },
+      emailThreads: {
+        include: { messages: { orderBy: { receivedAt: "asc" } } },
+      },
     },
   });
 }
 
 /** Items that are not yet confirmed (drives the "Unconfirmed" list in replies). */
-export function listUnconfirmed(qbr: NonNullable<Awaited<ReturnType<typeof getQbrFull>>>): string[] {
+export function listUnconfirmed(
+  qbr: NonNullable<Awaited<ReturnType<typeof getQbrFull>>>,
+): string[] {
   const out: string[] = [];
   for (const m of qbr.dashboardMetrics) {
-    if (!m.isConfirmed || m.value === TO_CONFIRM) out.push(`${m.label} (${m.group})`);
+    if (!m.isConfirmed || m.value === TO_CONFIRM)
+      out.push(`${m.label} (${m.group})`);
   }
   for (const r of qbr.missingInfoRequests) {
     if (r.status === "Open") out.push(r.question);
@@ -743,7 +946,12 @@ export function listUnconfirmed(qbr: NonNullable<Awaited<ReturnType<typeof getQb
  */
 export async function generateDraft(
   qbrCycleId: string,
-  opts?: { final?: boolean; skipAi?: boolean; keepStatus?: boolean; forceTranslate?: boolean },
+  opts?: {
+    final?: boolean;
+    skipAi?: boolean;
+    keepStatus?: boolean;
+    forceTranslate?: boolean;
+  },
 ) {
   const qbr = await getQbrFull(qbrCycleId);
   if (!qbr) throw new Error("QBR not found");
@@ -755,7 +963,8 @@ export async function generateDraft(
   const deckOptions = readDeckOptions(qbr.deckOptionsJson);
   // The account profile is the source of truth for the client logo shown in the
   // co-branding lockup; fall back to any per-deck override stored on the cycle.
-  deckOptions.clientLogoUrl = qbr.account.logoUrl ?? deckOptions.clientLogoUrl ?? null;
+  deckOptions.clientLogoUrl =
+    qbr.account.logoUrl ?? deckOptions.clientLogoUrl ?? null;
   const locale = resolveQbrLocale(qbr);
   const buffer = await generateQbrDeck(slideContent, deckOptions, locale);
 
@@ -765,8 +974,11 @@ export async function generateDraft(
   });
   const versionNumber = (last?.versionNumber ?? 0) + 1;
   const kind = opts?.final ? "Final" : `Draft_v${versionNumber}`;
-  const safeName = `${qbr.account.clientName}_${qbr.quarter}_${qbr.year}_QBR_${kind}`
-    .replace(/[^a-z0-9_]+/gi, "_");
+  const safeName =
+    `${qbr.account.clientName}_${qbr.quarter}_${qbr.year}_BR_${kind}`.replace(
+      /[^a-z0-9_]+/gi,
+      "_",
+    );
   const fileName = `${safeName}.pptx`;
   const { fileUrl } = await saveFile(`decks/${qbrCycleId}/${fileName}`, buffer);
   // Absolute URL so it is clickable from emails/clients outside the app shell.
@@ -794,9 +1006,17 @@ export async function generateDraft(
 
   // Move the cycle to DRAFT_GENERATED only for a real draft request — not when
   // we silently render a deck just to attach it to a routine reply (keepStatus).
-  if (!opts?.final && !opts?.keepStatus) await setStatus(qbrCycleId, "DRAFT_GENERATED");
+  if (!opts?.final && !opts?.keepStatus)
+    await setStatus(qbrCycleId, "DRAFT_GENERATED");
 
-  return { deck, fileName, fileUrl, downloadUrl, buffer, unconfirmed: listUnconfirmed(qbr) };
+  return {
+    deck,
+    fileName,
+    fileUrl,
+    downloadUrl,
+    buffer,
+    unconfirmed: listUnconfirmed(qbr),
+  };
 }
 
 /**
@@ -811,10 +1031,21 @@ export async function ensureDeckForAttachment(
 ): Promise<{ fileName: string; downloadUrl: string; buffer: Buffer }> {
   const latest = await getLatestDeck(qbrCycleId);
   if (latest) {
-    return { fileName: latest.fileName, downloadUrl: latest.downloadUrl, buffer: latest.buffer };
+    return {
+      fileName: latest.fileName,
+      downloadUrl: latest.downloadUrl,
+      buffer: latest.buffer,
+    };
   }
-  const draft = await generateDraft(qbrCycleId, { skipAi: true, keepStatus: true });
-  return { fileName: draft.fileName, downloadUrl: draft.downloadUrl, buffer: draft.buffer };
+  const draft = await generateDraft(qbrCycleId, {
+    skipAi: true,
+    keepStatus: true,
+  });
+  return {
+    fileName: draft.fileName,
+    downloadUrl: draft.downloadUrl,
+    buffer: draft.buffer,
+  };
 }
 
 const PPTX_MIME =
@@ -833,7 +1064,13 @@ export function deckAttachment(fileName: string, buffer: Buffer) {
  */
 export async function getLatestDeck(
   qbrCycleId: string,
-): Promise<{ fileName: string; downloadUrl: string; buffer: Buffer; versionNumber: number; isFinal: boolean } | null> {
+): Promise<{
+  fileName: string;
+  downloadUrl: string;
+  buffer: Buffer;
+  versionNumber: number;
+  isFinal: boolean;
+} | null> {
   const last = await prisma.deckVersion.findFirst({
     where: { qbrCycleId },
     orderBy: { versionNumber: "desc" },
@@ -842,7 +1079,7 @@ export async function getLatestDeck(
 
   // fileUrl is like "/api/files/decks/<id>/<name>.pptx" → storage-relative path.
   const relativePath = last.fileUrl.replace(/^\/api\/files\//, "");
-  const fileName = relativePath.split("/").pop() || `QBR_${qbrCycleId}.pptx`;
+  const fileName = relativePath.split("/").pop() || `BR_${qbrCycleId}.pptx`;
   try {
     const buffer = await readFile(relativePath);
     const downloadUrl = `${env.APP_URL.replace(/\/$/, "")}${last.fileUrl}`;
@@ -880,7 +1117,8 @@ export async function recordApproval(args: {
     actorEmail: args.approverEmail,
   });
   if (args.status === "approved") await setStatus(args.qbrCycleId, "APPROVED");
-  if (args.status === "revision_requested") await setStatus(args.qbrCycleId, "VP_REVIEW");
+  if (args.status === "revision_requested")
+    await setStatus(args.qbrCycleId, "VP_REVIEW");
   return approval;
 }
 
@@ -909,7 +1147,9 @@ export function assertCanFinalize(args: {
   allowOverride?: boolean;
 }): void {
   if (!args.hasVpApproval) {
-    throw new FinalizationBlockedError("VP approval is required before finalization.");
+    throw new FinalizationBlockedError(
+      "VP approval is required before finalization.",
+    );
   }
   if (args.unconfirmedMetricLabels.length > 0 && !args.allowOverride) {
     throw new FinalizationBlockedError(
@@ -922,7 +1162,10 @@ export function assertCanFinalize(args: {
  * Finalize a QBR. BLOCKED unless a VP approval exists. If required metrics are
  * unconfirmed, finalization is blocked unless settings allow override.
  */
-export async function finalize(qbrCycleId: string, opts?: { allowOverride?: boolean }) {
+export async function finalize(
+  qbrCycleId: string,
+  opts?: { allowOverride?: boolean },
+) {
   const approved = await hasVpApproval(qbrCycleId);
   const qbr = await getQbrFull(qbrCycleId);
   if (!qbr) throw new Error("QBR not found");
@@ -938,7 +1181,11 @@ export async function finalize(qbrCycleId: string, opts?: { allowOverride?: bool
 
   const result = await generateDraft(qbrCycleId, { final: true });
   await setStatus(qbrCycleId, "READY_FOR_MEETING");
-  await audit({ entityType: "QbrCycle", entityId: qbrCycleId, action: "qbr.finalized" });
+  await audit({
+    entityType: "QbrCycle",
+    entityId: qbrCycleId,
+    action: "qbr.finalized",
+  });
   return result;
 }
 
@@ -948,8 +1195,13 @@ export async function finalize(qbrCycleId: string, opts?: { allowOverride?: bool
  */
 function resolveSectionRef(ref?: string | null): GuidedSection | null {
   if (!ref) return null;
-  const s = ref.trim().toLowerCase().replace(/\s+slide$/, "").trim();
-  if ((GUIDED_SECTIONS as readonly string[]).includes(s)) return s as GuidedSection;
+  const s = ref
+    .trim()
+    .toLowerCase()
+    .replace(/\s+slide$/, "")
+    .trim();
+  if ((GUIDED_SECTIONS as readonly string[]).includes(s))
+    return s as GuidedSection;
   if (/agenda|ordre du jour/.test(s)) return "agenda";
   if (/follow|commit|engagement|suivi/.test(s)) return "followUps";
   if (/priorit/.test(s)) return "priorities";

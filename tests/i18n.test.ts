@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { DEFAULT_LOCALE, getStrings, parseLocale, toConfirmLabel } from "@/lib/i18n";
+import {
+  DEFAULT_LOCALE,
+  getStrings,
+  parseLocale,
+  toConfirmLabel,
+} from "@/lib/i18n";
 
 describe("i18n", () => {
   it("defaults to French for Quebec launch", () => {
@@ -18,7 +23,7 @@ describe("i18n", () => {
 
   it("provides English deck strings when requested", () => {
     const s = getStrings("en");
-    expect(s.deck.titleHeading).toBe("Quarterly Business Review");
+    expect(s.deck.titleHeading).toBe("Business Review");
     expect(toConfirmLabel("en")).toBe("To confirm");
   });
 });

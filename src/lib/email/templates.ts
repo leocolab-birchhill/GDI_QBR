@@ -4,7 +4,12 @@
  * job runner. Swap for React Email later without changing call sites.
  */
 
-import { EMAIL_FONT_FAMILY, escapeHtml, wrapEmailHtml, emailButtonStyle } from "./branding";
+import {
+  EMAIL_FONT_FAMILY,
+  escapeHtml,
+  wrapEmailHtml,
+  emailButtonStyle,
+} from "./branding";
 
 function wrapHtml(title: string, body: string): string {
   return wrapEmailHtml(title, body);
@@ -26,14 +31,17 @@ export function createQbrConfirmation(args: {
   year: number;
   missing: string[];
 }): EmailContent {
-  const subject = `Created: ${args.clientName} ${args.quarter} ${args.year} QBR`;
-  const text = `Created: ${args.clientName} ${args.quarter} ${args.year} QBR.
+  const subject = `Created: ${args.clientName} ${args.quarter} ${args.year} BR`;
+  const text = `Created: ${args.clientName} ${args.quarter} ${args.year} BR.
 
 I still need:
 ${args.missing.map((m, i) => `${i + 1}. ${m}`).join("\n")}
 
 Reply with whatever you know. "Unknown" is fine.`;
-  const html = wrapHtml(subject, `<p>Created: <strong>${escapeHtml(args.clientName)} ${args.quarter} ${args.year}</strong> QBR.</p><p>I still need:</p>${list(args.missing)}<p>Reply with whatever you know. "Unknown" is fine.</p>`);
+  const html = wrapHtml(
+    subject,
+    `<p>Created: <strong>${escapeHtml(args.clientName)} ${args.quarter} ${args.year}</strong> BR.</p><p>I still need:</p>${list(args.missing)}<p>Reply with whatever you know. "Unknown" is fine.</p>`,
+  );
   return { subject, text, html };
 }
 
@@ -49,23 +57,33 @@ export function capturedItemsReply(args: { sections: string[] }): EmailContent {
 }
 
 export function monthlyCheckIn(args: { clientName: string }): EmailContent {
-  const subject = `Monthly QBR check-in - ${args.clientName}`;
+  const subject = `Monthly BR check-in - ${args.clientName}`;
   const qs = [
     "Any client concerns?",
     "Any open commitments?",
     "Any safety incidents?",
     "Any billing issues?",
-    "Any upcoming work before the next QBR?",
+    "Any upcoming work before the next BR?",
   ];
   const text = `Please reply with updates:\n${qs.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
-  const html = wrapHtml(subject, `<p>Please reply with updates:</p>${list(qs)}`);
+  const html = wrapHtml(
+    subject,
+    `<p>Please reply with updates:</p>${list(qs)}`,
+  );
   return { subject, text, html };
 }
 
-export function vpSummary(args: { clientName: string; quarter: string; summary: string }): EmailContent {
-  const subject = `${args.clientName} ${args.quarter} QBR - one-month preparation summary`;
+export function vpSummary(args: {
+  clientName: string;
+  quarter: string;
+  summary: string;
+}): EmailContent {
+  const subject = `${args.clientName} ${args.quarter} BR - one-month preparation summary`;
   const text = args.summary;
-  const html = wrapHtml(subject, `<pre style="white-space:pre-wrap;font-family:${EMAIL_FONT_FAMILY}">${escapeHtml(args.summary)}</pre>`);
+  const html = wrapHtml(
+    subject,
+    `<pre style="white-space:pre-wrap;font-family:${EMAIL_FONT_FAMILY}">${escapeHtml(args.summary)}</pre>`,
+  );
   return { subject, text, html };
 }
 
@@ -93,10 +111,13 @@ Reply APPROVE, REVISE, or FINALIZE.`;
   return { subject, text, html };
 }
 
-export function finalDeckReady(args: { fileName: string; downloadUrl?: string }): EmailContent {
+export function finalDeckReady(args: {
+  fileName: string;
+  downloadUrl?: string;
+}): EmailContent {
   const subject = `Final deck attached: ${args.fileName}`;
   const text = `Final deck attached: ${args.fileName}
-Post-QBR reminders scheduled:
+Post-BR reminders scheduled:
 - Client survey 24 hours after meeting
 - Internal sentiment survey 24 hours after meeting
 - Follow-up commitment capture after meeting`;
@@ -104,22 +125,34 @@ Post-QBR reminders scheduled:
     subject,
     `<p>Final deck attached: <strong>${escapeHtml(args.fileName)}</strong></p>${
       args.downloadUrl ? downloadButton(args.downloadUrl, "Download .pptx") : ""
-    }<p>Post-QBR reminders scheduled:</p><ul><li>Client survey 24 hours after meeting</li><li>Internal sentiment survey 24 hours after meeting</li><li>Follow-up commitment capture after meeting</li></ul>`,
+    }<p>Post-BR reminders scheduled:</p><ul><li>Client survey 24 hours after meeting</li><li>Internal sentiment survey 24 hours after meeting</li><li>Follow-up commitment capture after meeting</li></ul>`,
   );
   return { subject, text, html };
 }
 
-export function clientSurvey(args: { clientName: string; questions: string[] }): EmailContent {
-  const subject = `We'd love your feedback - ${args.clientName} QBR`;
+export function clientSurvey(args: {
+  clientName: string;
+  questions: string[];
+}): EmailContent {
+  const subject = `We'd love your feedback - ${args.clientName} BR`;
   const text = `Please rate your experience:\n${args.questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
-  const html = wrapHtml(subject, `<p>Please rate your experience:</p>${list(args.questions)}`);
+  const html = wrapHtml(
+    subject,
+    `<p>Please rate your experience:</p>${list(args.questions)}`,
+  );
   return { subject, text, html };
 }
 
-export function internalSurvey(args: { clientName: string; questions: string[] }): EmailContent {
-  const subject = `Internal sentiment check - ${args.clientName} QBR`;
+export function internalSurvey(args: {
+  clientName: string;
+  questions: string[];
+}): EmailContent {
+  const subject = `Internal sentiment check - ${args.clientName} BR`;
   const text = `Quick internal pulse:\n${args.questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}`;
-  const html = wrapHtml(subject, `<p>Quick internal pulse:</p>${list(args.questions)}`);
+  const html = wrapHtml(
+    subject,
+    `<p>Quick internal pulse:</p>${list(args.questions)}`,
+  );
   return { subject, text, html };
 }
 
@@ -128,18 +161,29 @@ export function statusSummary(args: {
   quarter: string;
   year: number;
   status: string;
-  counts: { followUps: number; priorities: number; metrics: number; upcoming: number };
+  counts: {
+    followUps: number;
+    priorities: number;
+    metrics: number;
+    upcoming: number;
+  };
   needed: string[];
   unconfirmed: string[];
   hasDraft: boolean;
   vpApproved: boolean;
 }): EmailContent {
-  const subject = `Status: ${args.clientName} ${args.quarter} ${args.year} QBR`;
+  const subject = `Status: ${args.clientName} ${args.quarter} ${args.year} BR`;
   const nextSteps: string[] = [];
-  if (args.needed.length) nextSteps.push('Reply with the items under "Still needed" (just type what you know — "unknown" is fine).');
-  if (!args.hasDraft) nextSteps.push('Reply "generate draft" to build the deck.');
-  if (args.hasDraft && !args.vpApproved) nextSteps.push('Reply "approve" once the VP has signed off.');
-  if (args.hasDraft && args.vpApproved) nextSteps.push('Reply "finalize" to produce the final deck.');
+  if (args.needed.length)
+    nextSteps.push(
+      'Reply with the items under "Still needed" (just type what you know — "unknown" is fine).',
+    );
+  if (!args.hasDraft)
+    nextSteps.push('Reply "generate draft" to build the deck.');
+  if (args.hasDraft && !args.vpApproved)
+    nextSteps.push('Reply "approve" once the VP has signed off.');
+  if (args.hasDraft && args.vpApproved)
+    nextSteps.push('Reply "finalize" to produce the final deck.');
 
   const lines = [
     `Here's where ${args.clientName} ${args.quarter} ${args.year} stands:`,
@@ -148,10 +192,14 @@ export function statusSummary(args: {
     `Captured so far — follow-ups: ${args.counts.followUps}, priority items: ${args.counts.priorities}, metrics: ${args.counts.metrics}, what's-next: ${args.counts.upcoming}`,
     "",
     "Still needed:",
-    ...(args.needed.length ? args.needed.map((n) => `- ${n}`) : ["- Nothing — you're all set."]),
+    ...(args.needed.length
+      ? args.needed.map((n) => `- ${n}`)
+      : ["- Nothing — you're all set."]),
     "",
     "Unconfirmed values:",
-    ...(args.unconfirmed.length ? args.unconfirmed.map((u) => `- ${u}`) : ["- None"]),
+    ...(args.unconfirmed.length
+      ? args.unconfirmed.map((u) => `- ${u}`)
+      : ["- None"]),
     "",
     "Next steps:",
     ...nextSteps.map((s) => `- ${s}`),
@@ -169,10 +217,16 @@ export function statusSummary(args: {
   return { subject, text, html };
 }
 
-export function genericReply(args: { title: string; body: string }): EmailContent {
+export function genericReply(args: {
+  title: string;
+  body: string;
+}): EmailContent {
   return {
     subject: args.title,
     text: args.body,
-    html: wrapHtml(args.title, `<p>${escapeHtml(args.body).replace(/\n/g, "<br/>")}</p>`),
+    html: wrapHtml(
+      args.title,
+      `<p>${escapeHtml(args.body).replace(/\n/g, "<br/>")}</p>`,
+    ),
   };
 }

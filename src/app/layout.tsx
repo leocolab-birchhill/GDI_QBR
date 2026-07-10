@@ -15,28 +15,37 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
-  title: "GDI QBR OS",
-  description: "Système de revue trimestrielle des affaires — GDI QBR OS",
+  title: "GDI BR OS",
+  description: "Système de revue d’affaires — GDI BR OS",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const locale = getServerUiLocale();
   const nav = getStrings(locale).nav;
 
   const links = [
     { href: "/dashboard", label: nav.dashboard },
-    { href: "/qbr/new", label: nav.newQbr },
     { href: "/collaborate", label: nav.editor },
     { href: "/admin/settings", label: nav.settings },
   ];
 
   return (
     <html lang={locale} className={lato.variable} suppressHydrationWarning>
-      <body className={`${lato.className} font-sans antialiased`} suppressHydrationWarning>
+      <body
+        className={`${lato.className} font-sans antialiased`}
+        suppressHydrationWarning
+      >
         <div className="min-h-screen">
           <header className="border-b border-gdi-blue/15 bg-white">
             <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
-              <Link href="/dashboard" className="flex shrink-0 items-center gap-3">
+              <Link
+                href="/dashboard"
+                className="flex shrink-0 items-center gap-3"
+              >
                 <Image
                   src="/brand/gdi-logo.png"
                   alt="GDI"
@@ -45,7 +54,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   className="h-9 w-auto"
                   priority
                 />
-                <span className="hidden text-sm font-semibold text-gdi-blue sm:inline">QBR OS</span>
+                <span className="hidden text-sm font-semibold text-gdi-blue sm:inline">
+                  BR OS
+                </span>
               </Link>
               <nav className="flex flex-1 flex-wrap gap-1 text-sm">
                 {links.map((n) => (

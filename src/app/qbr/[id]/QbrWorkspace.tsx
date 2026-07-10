@@ -25,7 +25,13 @@ type Tab = (typeof TABS)[number];
 function fmt(d: string | null | undefined) {
   if (!d) return "—";
   const date = new Date(d);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
 }
 
 export default function QbrWorkspace({ qbr }: { qbr: any }) {
@@ -67,15 +73,23 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
             {qbr.account.clientName} — {qbr.quarter} {qbr.year}
           </h1>
           <p className="text-sm text-muted-foreground">
-            VP: {qbr.account.vpOwner?.name ?? "—"} · Director: {qbr.account.director?.name ?? "—"} · AM:{" "}
-            {qbr.account.accountManager?.name ?? "—"} · Meeting {fmt(qbr.meetingDate)}
+            VP: {qbr.account.vpOwner?.name ?? "—"} · Director:{" "}
+            {qbr.account.director?.name ?? "—"} · AM:{" "}
+            {qbr.account.accountManager?.name ?? "—"} · Meeting{" "}
+            {fmt(qbr.meetingDate)}
           </p>
         </div>
         <Badge status={qbr.status}>{qbr.status.replace(/_/g, " ")}</Badge>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={!!busy} onClick={() => call("Generate draft", `/api/qbr/${id}/generate-draft`)}>
+        <Button
+          size="sm"
+          disabled={!!busy}
+          onClick={() =>
+            call("Generate draft", `/api/qbr/${id}/generate-draft`)
+          }
+        >
           Generate Draft
         </Button>
         <Link
@@ -84,28 +98,76 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
         >
           Open Deck Editor
         </Link>
-        <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => call("VP approve", `/api/qbr/${id}/approve`, { approverEmail: qbr.account.vpOwner?.email ?? "bruno@gdi.com", status: "approved" })}>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!!busy}
+          onClick={() =>
+            call("VP approve", `/api/qbr/${id}/approve`, {
+              approverEmail: qbr.account.vpOwner?.email ?? "bruno@gdi.com",
+              status: "approved",
+            })
+          }
+        >
           Record VP Approval
         </Button>
-        <Button size="sm" variant="secondary" disabled={!!busy} onClick={() => call("Finalize", `/api/qbr/${id}/finalize`, {})}>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!!busy}
+          onClick={() => call("Finalize", `/api/qbr/${id}/finalize`, {})}
+        >
           Finalize
         </Button>
-        <Button size="sm" variant="outline" disabled={!!busy} onClick={() => call("VP summary", `/api/qbr/${id}/send-reminder`, { type: "vp30" })}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!!busy}
+          onClick={() =>
+            call("VP summary", `/api/qbr/${id}/send-reminder`, { type: "vp30" })
+          }
+        >
           Send 30-day VP Summary
         </Button>
-        <Button size="sm" variant="outline" disabled={!!busy} onClick={() => call("Monthly check-in", `/api/qbr/${id}/send-reminder`, { type: "monthly" })}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!!busy}
+          onClick={() =>
+            call("Monthly check-in", `/api/qbr/${id}/send-reminder`, {
+              type: "monthly",
+            })
+          }
+        >
           Send Monthly Check-in
         </Button>
-        <Button size="sm" variant="outline" disabled={!!busy} onClick={() => call("Surveys", `/api/qbr/${id}/survey/send`)}>
-          Send Post-QBR Surveys
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!!busy}
+          onClick={() => call("Surveys", `/api/qbr/${id}/survey/send`)}
+        >
+          Send Post-BR Surveys
         </Button>
-        <Button size="sm" variant="outline" disabled={!!busy} onClick={() => call("Roll forward", `/api/jobs/run`, { job: "rollForward", qbrCycleId: id })}>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={!!busy}
+          onClick={() =>
+            call("Roll forward", `/api/jobs/run`, {
+              job: "rollForward",
+              qbrCycleId: id,
+            })
+          }
+        >
           Roll Forward
         </Button>
       </div>
 
       {message && (
-        <div className="rounded-md border bg-accent px-4 py-2 text-sm text-accent-foreground">{message}</div>
+        <div className="rounded-md border bg-accent px-4 py-2 text-sm text-accent-foreground">
+          {message}
+        </div>
       )}
 
       <div className="flex flex-wrap gap-1 border-b">
@@ -114,7 +176,9 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
             key={t}
             onClick={() => setTab(t)}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
-              tab === t ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+              tab === t
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             {t}
@@ -128,12 +192,19 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
 }
 
 function summarize(data: any): string {
-  if (data.fileName) return `${data.fileName}${data.unconfirmed?.length ? ` · unconfirmed: ${data.unconfirmed.join(", ")}` : ""}`;
+  if (data.fileName)
+    return `${data.fileName}${data.unconfirmed?.length ? ` · unconfirmed: ${data.unconfirmed.join(", ")}` : ""}`;
   if (data.ok) return "done";
   return JSON.stringify(data).slice(0, 140);
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <Card>
       <CardHeader>
@@ -151,25 +222,49 @@ function renderTab(tab: Tab, qbr: any) {
         <div className="grid gap-4 md:grid-cols-2">
           <Section title="Summary">
             <ul className="space-y-1 text-sm">
-              <li>Status: <strong>{qbr.status.replace(/_/g, " ")}</strong></li>
+              <li>
+                Status: <strong>{qbr.status.replace(/_/g, " ")}</strong>
+              </li>
               <li>Follow-ups: {qbr.commitments.length}</li>
               <li>Priority items: {qbr.priorityItems.length}</li>
               <li>Metrics: {qbr.dashboardMetrics.length}</li>
               <li>Upcoming: {qbr.upcomingItems.length}</li>
-              <li>Open missing info: {qbr.missingInfoRequests.filter((m: any) => m.status === "Open").length}</li>
+              <li>
+                Open missing info:{" "}
+                {
+                  qbr.missingInfoRequests.filter(
+                    (m: any) => m.status === "Open",
+                  ).length
+                }
+              </li>
               <li>Deck versions: {qbr.deckVersions.length}</li>
-              <li>VP approved: {qbr.approvals.some((a: any) => a.status === "approved") ? "Yes" : "No"}</li>
+              <li>
+                VP approved:{" "}
+                {qbr.approvals.some((a: any) => a.status === "approved")
+                  ? "Yes"
+                  : "No"}
+              </li>
             </ul>
           </Section>
-          <Section title="Previous QBR notes">
-            <p className="whitespace-pre-wrap text-sm text-muted-foreground">{qbr.previousQbrNotes || "—"}</p>
+          <Section title="Previous BR notes">
+            <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+              {qbr.previousQbrNotes || "—"}
+            </p>
           </Section>
         </div>
       );
     case "Follow-Ups":
       return (
         <Section title="Open Follow-Ups & Progress">
-          <Table head={["#", "Agreed action (client-ready)", "Status", "Owner", "Due"]}>
+          <Table
+            head={[
+              "#",
+              "Agreed action (client-ready)",
+              "Status",
+              "Owner",
+              "Due",
+            ]}
+          >
             {qbr.commitments.map((c: any, i: number) => (
               <tr key={c.id} className="border-t">
                 <td className="p-2">{i + 1}</td>
@@ -188,11 +283,20 @@ function renderTab(tab: Tab, qbr: any) {
           {qbr.priorityItems.map((p: any, i: number) => (
             <Section key={p.id} title={`${i + 1}. ${p.title}`}>
               <p className="text-sm">{p.clientReadyText}</p>
-              <p className="mt-2 text-xs text-muted-foreground">Raw: {p.rawInput}</p>
-              <p className="mt-1 text-xs">Category: {p.category || "—"} {p.needsDecision ? "· Needs decision" : ""}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Raw: {p.rawInput}
+              </p>
+              <p className="mt-1 text-xs">
+                Category: {p.category || "—"}{" "}
+                {p.needsDecision ? "· Needs decision" : ""}
+              </p>
             </Section>
           ))}
-          {qbr.priorityItems.length === 0 && <p className="text-sm text-muted-foreground">No priority items yet.</p>}
+          {qbr.priorityItems.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No priority items yet.
+            </p>
+          )}
         </div>
       );
     case "Dashboard":
@@ -201,13 +305,22 @@ function renderTab(tab: Tab, qbr: any) {
           {["Health & Safety", "Operational", "Financial"].map((g) => (
             <Section key={g} title={g}>
               <ul className="space-y-1 text-sm">
-                {qbr.dashboardMetrics.filter((m: any) => m.group === g).map((m: any) => (
-                  <li key={m.id} className="flex justify-between">
-                    <span>{m.label}</span>
-                    <span className={m.isConfirmed ? "font-semibold" : "text-amber-600"}>{m.value}</span>
-                  </li>
-                ))}
-                {qbr.dashboardMetrics.filter((m: any) => m.group === g).length === 0 && (
+                {qbr.dashboardMetrics
+                  .filter((m: any) => m.group === g)
+                  .map((m: any) => (
+                    <li key={m.id} className="flex justify-between">
+                      <span>{m.label}</span>
+                      <span
+                        className={
+                          m.isConfirmed ? "font-semibold" : "text-amber-600"
+                        }
+                      >
+                        {m.value}
+                      </span>
+                    </li>
+                  ))}
+                {qbr.dashboardMetrics.filter((m: any) => m.group === g)
+                  .length === 0 && (
                   <li className="text-muted-foreground">No metrics</li>
                 )}
               </ul>
@@ -221,10 +334,16 @@ function renderTab(tab: Tab, qbr: any) {
           {qbr.upcomingItems.map((u: any, i: number) => (
             <Section key={u.id} title={`${i + 1}. ${u.title}`}>
               <p className="text-sm">{u.clientReadyText}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Timing: {u.timing || "—"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Timing: {u.timing || "—"}
+              </p>
             </Section>
           ))}
-          {qbr.upcomingItems.length === 0 && <p className="text-sm text-muted-foreground">No upcoming items yet.</p>}
+          {qbr.upcomingItems.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No upcoming items yet.
+            </p>
+          )}
         </div>
       );
     case "Missing Info":
@@ -253,13 +372,21 @@ function renderTab(tab: Tab, qbr: any) {
                 <td className="p-2">{fmt(d.createdAt)}</td>
                 <td className="p-2">
                   {d.fileUrl ? (
-                    <a className="text-primary underline" href={d.fileUrl}>Download .pptx</a>
-                  ) : "—"}
+                    <a className="text-primary underline" href={d.fileUrl}>
+                      Download .pptx
+                    </a>
+                  ) : (
+                    "—"
+                  )}
                 </td>
               </tr>
             ))}
           </Table>
-          {qbr.deckVersions.length === 0 && <p className="text-sm text-muted-foreground">No decks generated yet.</p>}
+          {qbr.deckVersions.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No decks generated yet.
+            </p>
+          )}
         </Section>
       );
     case "Emails":
@@ -273,11 +400,16 @@ function renderTab(tab: Tab, qbr: any) {
               <Card key={m.id}>
                 <CardContent className="py-3 text-sm">
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>{m.direction === "inbound" ? "↓ Inbound" : "↑ Outbound"} · {m.fromEmail} → {m.toEmail}</span>
+                    <span>
+                      {m.direction === "inbound" ? "↓ Inbound" : "↑ Outbound"} ·{" "}
+                      {m.fromEmail} → {m.toEmail}
+                    </span>
                     <span>{fmt(m.receivedAt)}</span>
                   </div>
                   <div className="font-medium">{m.subject}</div>
-                  <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{m.bodyText}</p>
+                  <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
+                    {m.bodyText}
+                  </p>
                 </CardContent>
               </Card>
             )),
@@ -297,7 +429,11 @@ function renderTab(tab: Tab, qbr: any) {
               </tr>
             ))}
           </Table>
-          {qbr.approvals.length === 0 && <p className="text-sm text-muted-foreground">No approvals yet. VP approval is required before finalization.</p>}
+          {qbr.approvals.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No approvals yet. VP approval is required before finalization.
+            </p>
+          )}
         </Section>
       );
     case "Surveys":
@@ -308,7 +444,9 @@ function renderTab(tab: Tab, qbr: any) {
               <p className="text-sm text-muted-foreground">None yet.</p>
             ) : (
               qbr.clientSurveys.map((s: any) => (
-                <div key={s.id} className="text-sm">Overall: {s.overallScore ?? "—"} · {s.comments}</div>
+                <div key={s.id} className="text-sm">
+                  Overall: {s.overallScore ?? "—"} · {s.comments}
+                </div>
               ))
             )}
           </Section>
@@ -317,7 +455,9 @@ function renderTab(tab: Tab, qbr: any) {
               <p className="text-sm text-muted-foreground">None yet.</p>
             ) : (
               qbr.internalSurveys.map((s: any) => (
-                <div key={s.id} className="text-sm">Perceived: {s.perceivedClientScore ?? "—"} · {s.notes}</div>
+                <div key={s.id} className="text-sm">
+                  Perceived: {s.perceivedClientScore ?? "—"} · {s.notes}
+                </div>
               ))
             )}
           </Section>
@@ -326,13 +466,21 @@ function renderTab(tab: Tab, qbr: any) {
   }
 }
 
-function Table({ head, children }: { head: string[]; children: React.ReactNode }) {
+function Table({
+  head,
+  children,
+}: {
+  head: string[];
+  children: React.ReactNode;
+}) {
   return (
     <table className="w-full text-left text-sm">
       <thead>
         <tr className="text-xs uppercase text-muted-foreground">
           {head.map((h) => (
-            <th key={h} className="p-2">{h}</th>
+            <th key={h} className="p-2">
+              {h}
+            </th>
           ))}
         </tr>
       </thead>

@@ -1,5 +1,5 @@
 /**
- * Single source of truth for ALL QBR deck formatting.
+ * Single source of truth for ALL BR deck formatting.
  *
  * Every color, font, geometry value (x/y/w/h), font size, column width and row
  * height used by the deterministic renderer (generateQbrDeck.ts) lives here.
@@ -115,10 +115,10 @@ const DASH_COL_W = (CONTENT_W - DASH_COL_GAP * 2) / 3; // 3.978…
  */
 export const DECK_THEME = {
   layout: {
-    name: "QBR",
+    name: "BR",
     width: PAGE_W,
     height: PAGE_H,
-    author: "GDI QBR OS",
+    author: "GDI BR OS",
     company: "GDI",
   },
 
@@ -174,7 +174,14 @@ export const DECK_THEME = {
     accentBand: { x: MARGIN_X, y: 3.2, w: 5.5, h: 0.08 },
     clientName: { x: MARGIN_X, y: 2.2, w: 11.7, h: 1, fontSize: 46 },
     quarterYear: { x: MARGIN_X, y: 3.5, w: 11.7, h: 0.6, fontSize: 24 },
-    heading: { x: MARGIN_X, y: 4.2, w: 11.7, h: 0.7, fontSize: 28, text: "Quarterly Business Review" },
+    heading: {
+      x: MARGIN_X,
+      y: 4.2,
+      w: 11.7,
+      h: 0.7,
+      fontSize: 28,
+      text: "Business Review",
+    },
     meetingMonthYear: { x: MARGIN_X, y: 5.2, w: 11.7, h: 0.6, fontSize: 20 },
   },
 
@@ -236,7 +243,12 @@ export const DECK_THEME = {
     /** Hanging indent so body text aligns under the title, past the number. */
     bodyIndent: PROSE_INDENT,
     title: { x: MARGIN_X, w: CONTENT_W, h: 0.5, fontSize: 21, fontSizeMin: 13 },
-    body: { x: MARGIN_X + PROSE_INDENT, w: CONTENT_W - PROSE_INDENT, fontSize: 15, fontSizeMin: 10 },
+    body: {
+      x: MARGIN_X + PROSE_INDENT,
+      w: CONTENT_W - PROSE_INDENT,
+      fontSize: 15,
+      fontSizeMin: 10,
+    },
   },
 
   /** Slide 5 — Dashboard (paginated 3-column tables). */
@@ -273,7 +285,12 @@ export const DECK_THEME = {
     minBodyH: 0.18,
     bodyIndent: PROSE_INDENT,
     title: { x: MARGIN_X, w: CONTENT_W, h: 0.5, fontSize: 21, fontSizeMin: 13 },
-    body: { x: MARGIN_X + PROSE_INDENT, w: CONTENT_W - PROSE_INDENT, fontSize: 15, fontSizeMin: 10 },
+    body: {
+      x: MARGIN_X + PROSE_INDENT,
+      w: CONTENT_W - PROSE_INDENT,
+      fontSize: 15,
+      fontSizeMin: 10,
+    },
   },
 
   /**
@@ -332,7 +349,13 @@ export const DECK_THEME = {
   overlays: {
     // Footer is centered across the content width so it never collides with the
     // corner page numbers, whatever page-number position is selected.
-    footer: { x: MARGIN_X, w: CONTENT_W, yFromBottom: FOOTER_BASELINE_FROM_BOTTOM, h: 0.3, fontSize: 9 },
+    footer: {
+      x: MARGIN_X,
+      w: CONTENT_W,
+      yFromBottom: FOOTER_BASELINE_FROM_BOTTOM,
+      h: 0.3,
+      fontSize: 9,
+    },
     pageNumber: {
       leftX: MARGIN_X,
       rightXFromRight: MARGIN_X + 0.8,
@@ -342,7 +365,12 @@ export const DECK_THEME = {
       fontSize: 10,
     },
     /** Hairline rule that anchors the footer band across the content width. */
-    rule: { x: MARGIN_X, w: CONTENT_W, yFromBottom: FOOTER_RULE_FROM_BOTTOM, h: 0.012 },
+    rule: {
+      x: MARGIN_X,
+      w: CONTENT_W,
+      yFromBottom: FOOTER_RULE_FROM_BOTTOM,
+      h: 0.012,
+    },
     tag: { xFromRight: 1.5, y: 0.12, w: 1.3, h: 0.35, fontSize: 12 },
   },
 

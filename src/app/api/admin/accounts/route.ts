@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { audit } from "@/lib/audit";
 
 export async function GET() {
   const accounts = await prisma.account.findMany({
@@ -24,8 +25,12 @@ export async function POST(req: Request) {
     const account = await prisma.account.create({ data: body });
     return NextResponse.json(account);
   } catch (err) {
-    if (err instanceof z.ZodError) return NextResponse.json({ error: err.flatten() }, { status: 400 });
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    if (err instanceof z.ZodError)
+      return NextResponse.json({ error: err.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: (err as Error).message },
+      { status: 500 },
+    );
   }
 }
 
@@ -44,7 +49,48 @@ export async function PATCH(req: Request) {
     const account = await prisma.account.update({ where: { id }, data });
     return NextResponse.json(account);
   } catch (err) {
-    if (err instanceof z.ZodError) return NextResponse.json({ error: err.flatten() }, { status: 400 });
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    if (err instanceof z.ZodError)
+      return NextResponse.json({ error: err.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: (err as Error).message },
+      { status: 500 },
+    );
+  }
+}
+
+const DeleteSchema = z.object({
+  id: z.string().min(1),
+  confirmationName: z.string().min(1),
+});
+
+/** Delete a client account only after the caller re-enters the exact client name. */
+export async function DELETE(req: Request) {
+  try {
+    const { id, confirmationName } = DeleteSchema.parse(await req.json());
+    const account = await prisma.account.findUnique({ where: { id } });
+    if (!account)
+      return NextResponse.json({ error: "Account not found" }, { status: 404 });
+    if (confirmationName.trim() !== account.clientName) {
+      return NextResponse.json(
+        { error: "Client name confirmation did not match" },
+        { status: 400 },
+      );
+    }
+
+    await prisma.account.delete({ where: { id } });
+    await audit({
+      entityType: "Account",
+      entityId: id,
+      action: "account.deleted",
+      metadata: { clientName: account.clientName },
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    if (err instanceof z.ZodError)
+      return NextResponse.json({ error: err.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: (err as Error).message },
+      { status: 500 },
+    );
   }
 }

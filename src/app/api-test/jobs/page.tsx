@@ -11,8 +11,8 @@ const JOBS = [
   { id: "vpSummary30", label: "30-day VP summary" },
   { id: "draft14", label: "14-day draft reminder" },
   { id: "finalReview", label: "Final review reminder" },
-  { id: "postQbrSurveys", label: "Post-QBR surveys" },
-  { id: "rollForward", label: "Roll forward to next QBR" },
+  { id: "postQbrSurveys", label: "Post-BR surveys" },
+  { id: "rollForward", label: "Roll forward to next BR" },
 ];
 
 export default function JobsPage() {
@@ -40,7 +40,10 @@ export default function JobsPage() {
         body: JSON.stringify({ job, qbrCycleId: selected }),
       });
       const data = await res.json();
-      setLog((l) => [`${new Date().toLocaleTimeString()} · ${job}: ${res.ok ? "OK" : "ERR"} ${JSON.stringify(data).slice(0, 120)}`, ...l]);
+      setLog((l) => [
+        `${new Date().toLocaleTimeString()} · ${job}: ${res.ok ? "OK" : "ERR"} ${JSON.stringify(data).slice(0, 120)}`,
+        ...l,
+      ]);
     } finally {
       setBusy(false);
     }
@@ -50,12 +53,14 @@ export default function JobsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Job / Reminder Runner</h1>
-        <p className="text-muted-foreground">Manually trigger reminder-engine jobs. These are cron-ready.</p>
+        <p className="text-muted-foreground">
+          Manually trigger reminder-engine jobs. These are cron-ready.
+        </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Target QBR</CardTitle>
+          <CardTitle>Target BR</CardTitle>
         </CardHeader>
         <CardContent>
           <select
@@ -74,7 +79,12 @@ export default function JobsPage() {
 
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         {JOBS.map((j) => (
-          <Button key={j.id} variant="outline" disabled={busy || !selected} onClick={() => run(j.id)}>
+          <Button
+            key={j.id}
+            variant="outline"
+            disabled={busy || !selected}
+            onClick={() => run(j.id)}
+          >
             {j.label}
           </Button>
         ))}
@@ -86,11 +96,15 @@ export default function JobsPage() {
         </CardHeader>
         <CardContent>
           {log.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No jobs run yet. Check the server console for mock email output.</p>
+            <p className="text-sm text-muted-foreground">
+              No jobs run yet. Check the server console for mock email output.
+            </p>
           ) : (
             <ul className="space-y-1 text-xs">
               {log.map((l, i) => (
-                <li key={i} className="font-mono">{l}</li>
+                <li key={i} className="font-mono">
+                  {l}
+                </li>
               ))}
             </ul>
           )}
