@@ -1095,13 +1095,21 @@ export async function getLatestDeck(
   }
 }
 
-/** Record a VP approval. */
+/** Record a VP approval (or revoke it via revision_requested / rejected). */
 export async function recordApproval(args: {
   qbrCycleId: string;
   approverEmail: string;
   status: "approved" | "revision_requested" | "rejected";
   comments?: string;
 }) {
+  // Revoking must clear prior "approved" rows so hasVpApproval() flips off —
+  // otherwise a new revision_requested row leaves the old approval in place.
+  if (args.status === "revision_requested" || args.status === "rejected") {
+    await prisma.approval.deleteMany({
+      where: { qbrCycleId: args.qbrCycleId, status: "approved" },
+    });
+  }
+
   const approval = await prisma.approval.create({
     data: {
       qbrCycleId: args.qbrCycleId,
@@ -1117,8 +1125,9 @@ export async function recordApproval(args: {
     actorEmail: args.approverEmail,
   });
   if (args.status === "approved") await setStatus(args.qbrCycleId, "APPROVED");
-  if (args.status === "revision_requested")
+  if (args.status === "revision_requested" || args.status === "rejected") {
     await setStatus(args.qbrCycleId, "VP_REVIEW");
+  }
   return approval;
 }
 

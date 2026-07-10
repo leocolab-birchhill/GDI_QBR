@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -265,6 +266,39 @@ function HealthDot({ health }: { health: HealthLevel }) {
 }
 
 function QbrCard({ cycle: c, s }: { cycle: DashboardCycle; s: DashStrings }) {
+  const [vpBusy, setVpBusy] = useState(false);
+  const [vpOn, setVpOn] = useState(c.vpApproved);
+  const router = useRouter();
+
+  useEffect(() => {
+    setVpOn(c.vpApproved);
+  }, [c.vpApproved]);
+
+  async function toggleVp(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (vpBusy || !c.hasDraft) return;
+    setVpBusy(true);
+    const next = !vpOn;
+    try {
+      const res = await fetch(`/api/qbr/${c.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          approverEmail: c.vpOwner?.email ?? "bruno@gdi.com",
+          status: next ? "approved" : "revision_requested",
+          comments: next ? undefined : "Approval revoked from dashboard",
+        }),
+      });
+      if (res.ok) {
+        setVpOn(next);
+        router.refresh();
+      }
+    } finally {
+      setVpBusy(false);
+    }
+  }
+
   return (
     <Card className={`flex h-full flex-col transition-shadow hover:shadow-md ${healthBorderClass(c.health)}`}>
       <Link href={`/qbr/${c.id}`} className="flex flex-1 flex-col">
@@ -306,7 +340,7 @@ function QbrCard({ cycle: c, s }: { cycle: DashboardCycle; s: DashStrings }) {
           <div className="mt-auto space-y-1 border-t pt-2">
             <Row label={s.missingInfo} value={String(c.openMissingInfo)} warn={c.openMissingInfo > 0} />
             <Row label={s.unconfirmedMetricsRow} value={String(c.unconfirmedMetrics)} warn={c.unconfirmedMetrics > 0} />
-            <Row label={s.vpApproved} value={c.vpApproved ? s.yes : s.no} warn={c.hasDraft && !c.vpApproved} />
+            <Row label={s.vpApproved} value={vpOn ? s.yes : s.no} warn={c.hasDraft && !vpOn} />
             <Row
               label={s.latestDeck}
               value={c.latestDeckVersion ? `v${c.latestDeckVersion} (${c.latestDeckStatus})` : "—"}
@@ -318,29 +352,40 @@ function QbrCard({ cycle: c, s }: { cycle: DashboardCycle; s: DashStrings }) {
           </div>
         </CardContent>
       </Link>
-      <div className="flex gap-2 border-t px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2.5">
         <Link
           href={`/qbr/${c.id}`}
-          className="text-xs font-medium text-primary hover:underline"
-          onClick={(e) => e.stopPropagation()}
+          className="inline-flex h-8 items-center rounded-md border border-input bg-background px-2.5 text-xs font-semibold hover:bg-accent"
         >
           {s.workspace}
         </Link>
-        <span className="text-muted-foreground">·</span>
         <Link
           href={`/qbr/${c.id}/collaborate`}
-          className="text-xs font-medium text-primary hover:underline"
+          className="inline-flex h-8 items-center rounded-md bg-primary px-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
         >
           {s.deckEditor}
         </Link>
-        {c.hasDraft && !c.vpApproved && (
-          <>
-            <span className="text-muted-foreground">·</span>
-            <Link href={`/qbr/${c.id}`} className="text-xs font-medium text-gdi-navy hover:underline">
-              {s.vpReview}
-            </Link>
-          </>
-        )}
+        <button
+          type="button"
+          disabled={vpBusy || !c.hasDraft}
+          onClick={toggleVp}
+          aria-pressed={vpOn}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+            vpOn
+              ? "border-gdi-green bg-gdi-green text-white hover:bg-gdi-green/90"
+              : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+          }`}
+          title={vpOn ? "VP on — click to revoke" : "VP off — click to approve"}
+        >
+          <span
+            className={`flex h-3.5 w-3.5 items-center justify-center rounded-full text-[9px] ${
+              vpOn ? "bg-white/25" : "bg-amber-200"
+            }`}
+          >
+            {vpBusy ? "…" : vpOn ? "✓" : ""}
+          </span>
+          VP
+        </button>
       </div>
     </Card>
   );

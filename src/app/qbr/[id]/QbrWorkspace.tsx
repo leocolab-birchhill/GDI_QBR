@@ -45,28 +45,96 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
 
   const clientName: string = qbr.account.clientName;
   const accountId: string = qbr.account.id;
+  const id = qbr.id;
+  const vpEmail: string =
+    qbr.account.vpOwner?.email ?? "bruno@gdi.com";
 
-  async function call(label: string, url: string, body?: unknown) {
+  const hasDraft = (qbr.deckVersions?.length ?? 0) > 0;
+  const vpApproved = (qbr.approvals ?? []).some(
+    (a: any) => a.status === "approved",
+  );
+  const isFinal =
+    qbr.status === "READY_FOR_MEETING" ||
+    qbr.status === "PRESENTED" ||
+    qbr.status === "SURVEY_SENT" ||
+    qbr.status === "CLOSED" ||
+    (qbr.deckVersions ?? []).some((d: any) => d.status === "final");
+  const surveysSent =
+    qbr.status === "SURVEY_SENT" ||
+    qbr.status === "CLOSED" ||
+    (qbr.clientSurveys?.length ?? 0) > 0 ||
+    (qbr.internalSurveys?.length ?? 0) > 0;
+  const isClosed = qbr.status === "CLOSED";
+  const canRollForward =
+    !isClosed &&
+    ["READY_FOR_MEETING", "PRESENTED", "SURVEY_SENT", "APPROVED"].includes(
+      qbr.status,
+    );
+
+  async function call(
+    label: string,
+    url: string,
+    body?: unknown,
+    opts?: { method?: string; onOk?: (data: any) => void },
+  ) {
     setBusy(label);
     setMessage(null);
     try {
       const res = await fetch(url, {
-        method: "POST",
+        method: opts?.method ?? "POST",
         headers: { "Content-Type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
       });
       const data = await res.json();
       if (!res.ok) {
         setMessage(`${label} failed: ${data.error ?? res.statusText}`);
       } else {
-        setMessage(`${label}: ${summarize(data)}`);
-        router.refresh();
+        opts?.onOk?.(data);
+        if (!opts?.onOk) {
+          setMessage(null);
+          router.refresh();
+        }
       }
     } catch (e) {
       setMessage(`${label} error: ${(e as Error).message}`);
     } finally {
       setBusy(null);
     }
+  }
+
+  function toggleVpApproval() {
+    if (vpApproved) {
+      void call("VP", `/api/qbr/${id}/approve`, {
+        approverEmail: vpEmail,
+        status: "revision_requested",
+        comments: "Approval revoked from workspace",
+      });
+    } else {
+      void call("VP", `/api/qbr/${id}/approve`, {
+        approverEmail: vpEmail,
+        status: "approved",
+      });
+    }
+  }
+
+  function rollForward() {
+    void call(
+      "Roll forward",
+      `/api/jobs/run`,
+      { job: "rollForward", qbrCycleId: id },
+      {
+        onOk: (data) => {
+          const nextId = data?.result?.id;
+          if (nextId) {
+            router.push(`/qbr/${nextId}`);
+            router.refresh();
+          } else {
+            router.push("/dashboard");
+            router.refresh();
+          }
+        },
+      },
+    );
   }
 
   async function deleteClient() {
@@ -95,8 +163,6 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
       setDeleting(false);
     }
   }
-
-  const id = qbr.id;
 
   return (
     <div className="space-y-6">
@@ -130,56 +196,78 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
+      {/* Workflow: state is the design — filled = done, outline = pending, muted = locked */}
+      <div className="flex flex-wrap items-stretch gap-2 rounded-lg border bg-card p-2">
+        <WorkflowStep
+          label="Draft"
+          done={hasDraft}
+          busy={busy === "Generate draft"}
           disabled={!!busy}
           onClick={() =>
             call("Generate draft", `/api/qbr/${id}/generate-draft`)
           }
-        >
-          Generate Draft
-        </Button>
-        <Link
-          href={`/qbr/${id}/collaborate`}
-          className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
-        >
-          Open Deck Editor
-        </Link>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!!busy}
-          onClick={() =>
-            call("VP approve", `/api/qbr/${id}/approve`, {
-              approverEmail: qbr.account.vpOwner?.email ?? "bruno@gdi.com",
-              status: "approved",
-            })
-          }
-        >
-          Record VP Approval
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={!!busy}
+        />
+        <StepArrow />
+        <WorkflowStep
+          label="VP"
+          done={vpApproved}
+          toggle
+          busy={busy === "VP"}
+          disabled={!!busy || !hasDraft}
+          onClick={toggleVpApproval}
+        />
+        <StepArrow />
+        <WorkflowStep
+          label="Final"
+          done={isFinal}
+          busy={busy === "Finalize"}
+          disabled={!!busy || !vpApproved || isFinal}
           onClick={() => call("Finalize", `/api/qbr/${id}/finalize`, {})}
-        >
-          Finalize
-        </Button>
+        />
+        <StepArrow />
+        <WorkflowStep
+          label="Surveys"
+          done={surveysSent}
+          busy={busy === "Surveys"}
+          disabled={!!busy || surveysSent || !vpApproved}
+          onClick={() => call("Surveys", `/api/qbr/${id}/survey/send`)}
+        />
+        <StepArrow />
+        <WorkflowStep
+          label={isClosed ? "Rolled" : "Next Q"}
+          done={isClosed}
+          busy={busy === "Roll forward"}
+          disabled={!!busy || isClosed || !canRollForward}
+          onClick={rollForward}
+        />
+
+        <div className="ml-auto flex items-center">
+          <Link
+            href={`/qbr/${id}/collaborate`}
+            className="inline-flex h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:opacity-90"
+          >
+            Edit deck
+          </Link>
+        </div>
+      </div>
+
+      {/* Secondary one-shot reminders — quieter, not workflow state */}
+      <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
-          variant="outline"
+          variant="ghost"
+          className="text-muted-foreground"
           disabled={!!busy}
           onClick={() =>
             call("VP summary", `/api/qbr/${id}/send-reminder`, { type: "vp30" })
           }
         >
-          Send 30-day VP Summary
+          VP summary email
         </Button>
         <Button
           size="sm"
-          variant="outline"
+          variant="ghost"
+          className="text-muted-foreground"
           disabled={!!busy}
           onClick={() =>
             call("Monthly check-in", `/api/qbr/${id}/send-reminder`, {
@@ -187,33 +275,12 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
             })
           }
         >
-          Send Monthly Check-in
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!!busy}
-          onClick={() => call("Surveys", `/api/qbr/${id}/survey/send`)}
-        >
-          Send Post-BR Surveys
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!!busy}
-          onClick={() =>
-            call("Roll forward", `/api/jobs/run`, {
-              job: "rollForward",
-              qbrCycleId: id,
-            })
-          }
-        >
-          Roll Forward
+          Monthly check-in
         </Button>
       </div>
 
       {message && (
-        <div className="rounded-md border bg-accent px-4 py-2 text-sm text-accent-foreground">
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
           {message}
         </div>
       )}
@@ -283,11 +350,75 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
   );
 }
 
-function summarize(data: any): string {
-  if (data.fileName)
-    return `${data.fileName}${data.unconfirmed?.length ? ` · unconfirmed: ${data.unconfirmed.join(", ")}` : ""}`;
-  if (data.ok) return "done";
-  return JSON.stringify(data).slice(0, 140);
+function StepArrow() {
+  return (
+    <span
+      aria-hidden
+      className="hidden items-center text-slate-300 sm:flex"
+    >
+      →
+    </span>
+  );
+}
+
+/** Compact workflow chip: filled green = on/done, outline = off, muted = locked. */
+function WorkflowStep({
+  label,
+  done,
+  toggle,
+  busy,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  done: boolean;
+  toggle?: boolean;
+  busy?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  const base =
+    "inline-flex h-10 min-w-[5.5rem] items-center justify-center gap-1.5 rounded-md border px-3 text-sm font-semibold transition-colors";
+  const on =
+    "border-gdi-green bg-gdi-green text-white shadow-sm hover:bg-gdi-green/90";
+  const off =
+    "border-input bg-background text-foreground hover:border-gdi-navy hover:bg-gdi-navy/5";
+  const locked =
+    "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400";
+
+  return (
+    <button
+      type="button"
+      aria-pressed={toggle ? done : undefined}
+      disabled={disabled}
+      onClick={onClick}
+      className={`${base} ${disabled && !done ? locked : done ? on : off} ${busy ? "opacity-70" : ""}`}
+      title={
+        toggle
+          ? done
+            ? "On — click to turn off"
+            : "Off — click to turn on"
+          : done
+            ? "Done"
+            : disabled
+              ? "Locked"
+              : "Click to run"
+      }
+    >
+      <span
+        className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${
+          done
+            ? "bg-white/25 text-white"
+            : disabled
+              ? "bg-slate-200 text-slate-400"
+              : "bg-slate-200 text-slate-600"
+        }`}
+      >
+        {busy ? "…" : done ? "✓" : ""}
+      </span>
+      {label}
+    </button>
+  );
 }
 
 function Section({
