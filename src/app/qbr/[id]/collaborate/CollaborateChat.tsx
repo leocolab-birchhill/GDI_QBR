@@ -2337,6 +2337,7 @@ export default function CollaborateChat({
                 </button>
               </form>
               </div>
+              </div>
             )}
           </div>
         </div>
