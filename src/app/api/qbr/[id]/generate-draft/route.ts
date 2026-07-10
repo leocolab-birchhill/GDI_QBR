@@ -3,7 +3,13 @@ import { generateDraft } from "@/lib/qbr/service";
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   try {
-    const result = await generateDraft(params.id);
+    let body: { skipAi?: boolean } = {};
+    try {
+      body = await _req.json();
+    } catch {
+      body = {};
+    }
+    const result = await generateDraft(params.id, { skipAi: body.skipAi });
     return NextResponse.json({
       ok: true,
       fileName: result.fileName,
