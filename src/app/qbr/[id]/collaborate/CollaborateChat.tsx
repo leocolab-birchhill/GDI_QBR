@@ -24,7 +24,7 @@ import {
 import { getSectionGuidance, getSectionReview, sectionChatPlaceholder } from "@/lib/qbr/sectionGuidance";
 import DeckPreview from "./DeckPreview";
 import DeckLanguageToggle from "./DeckLanguageToggle";
-import AgentTaskCard, { AgentActivity } from "./AgentTaskCard";
+import AgentTaskCard from "./AgentTaskCard";
 import { useAgentProposal } from "./useAgentProposal";
 
 interface DeckRef {
@@ -54,6 +54,7 @@ interface ChangeActivity {
 }
 
 type ThreadScope = "section" | "all";
+type EditorTab = "editor" | "activity";
 type RailKey = GuidedSection | `custom:${string}`;
 
 function railKeyForSection(section: GuidedSection): RailKey {
@@ -71,12 +72,18 @@ function isCustomRailKey(key: RailKey): key is `custom:${string}` {
 function EditorCapabilities({ locale }: { locale: Locale }) {
   const c = getStrings(locale).editor.capabilities;
   return (
-    <details className="mt-3 rounded-md border bg-muted/30 text-xs">
-      <summary className="cursor-pointer select-none px-3 py-2 font-medium text-foreground hover:bg-muted/50">
-        {c.title}
+    <details className="group relative inline-block text-xs">
+      <summary
+        className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-full border bg-background text-muted-foreground hover:bg-accent hover:text-foreground [&::-webkit-details-marker]:hidden"
+        title={c.title}
+        aria-label={c.title}
+      >
+        ?
       </summary>
-      <div className="grid gap-3 border-t px-3 py-3 sm:grid-cols-2">
-        <div>
+      <div className="absolute right-0 z-20 mt-2 w-[min(30rem,calc(100vw-2rem))] rounded-md border bg-popover text-popover-foreground shadow-lg">
+        <div className="border-b px-3 py-2 font-medium text-foreground">{c.title}</div>
+        <div className="grid gap-3 px-3 py-3 sm:grid-cols-2">
+          <div>
           <p className="mb-1.5 font-semibold text-gdi-green">{c.can}</p>
           <ul className="space-y-1 text-muted-foreground">
             {c.canItems.map((item, i) => (
@@ -91,9 +98,10 @@ function EditorCapabilities({ locale }: { locale: Locale }) {
               <li key={i}>· {item}</li>
             ))}
           </ul>
+          </div>
         </div>
+        <p className="border-t px-3 py-2 text-[11px] text-muted-foreground">{c.capacityNote}</p>
       </div>
-      <p className="border-t px-3 py-2 text-[11px] text-muted-foreground">{c.capacityNote}</p>
     </details>
   );
 }
@@ -1544,6 +1552,7 @@ export default function CollaborateChat({
   const [activeRailKey, setActiveRailKey] = useState<RailKey>(
     railKeyForSection(initialProgress.currentSection),
   );
+  const [activeTab, setActiveTab] = useState<EditorTab>("editor");
 
   const [clientName, setClientName] = useState(initialClientName);
   const [editingName, setEditingName] = useState(false);
@@ -1655,6 +1664,7 @@ export default function CollaborateChat({
   }, [agent.proposal?.id, agent.clearProposal, qbrId, uiLocale]);
 
   async function selectRail(key: RailKey) {
+    setActiveTab("editor");
     setActiveRailKey(key);
     if (isCustomRailKey(key)) {
       setHighlightSection(editorProgress.currentSection as SlideSection);
@@ -1666,8 +1676,19 @@ export default function CollaborateChat({
 
   async function selectSection(section: GuidedSection, completed?: boolean) {
     if (sectionBusy) return;
+    setActiveTab("editor");
     setSectionBusy(true);
-    // Optimistically move the highlight + scroll the preview to that slide.
+    // Optimistically move the highlight, editor state, completion chip, and preview to that slide.
+    setEditorProgress((prev) => ({
+      ...prev,
+      currentSection: section,
+      confirmedSections:
+        completed === true
+          ? Array.from(new Set([...prev.confirmedSections, section]))
+          : completed === false
+            ? prev.confirmedSections.filter((item) => item !== section)
+            : prev.confirmedSections,
+    }));
     setHighlightSection(section as SlideSection);
     setScrollToken((t) => t + 1);
     setActiveRailKey(railKeyForSection(section));
@@ -1884,7 +1905,7 @@ export default function CollaborateChat({
   }
 
   function confirmCurrentSection() {
-    send(s.editor.confirm, editorProgress.currentSection);
+    void selectSection(editorProgress.currentSection, true);
   }
 
   async function acceptProposal() {
@@ -2087,6 +2108,25 @@ export default function CollaborateChat({
               onSave={(patches) => submitEdits({ patches })}
             />
           )}
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="inline-flex rounded-lg border bg-muted/30 p-1 text-xs font-medium">
+              <button
+                type="button"
+                onClick={() => setActiveTab("editor")}
+                className={`rounded-md px-3 py-1.5 ${activeTab === "editor" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {uiLocale === "fr" ? "Éditeur" : "Slide editor"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("activity")}
+                className={`rounded-md px-3 py-1.5 ${activeTab === "activity" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {uiLocale === "fr" ? "Activité" : "Activity"}
+              </button>
+            </div>
+            <EditorCapabilities locale={uiLocale} />
+          </div>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
@@ -2107,7 +2147,7 @@ export default function CollaborateChat({
               </div>
             )}
 
-            {editorProgress.guidedMode && (
+            {activeTab === "editor" && editorProgress.guidedMode && (
               isCustomRailKey(activeRailKey) ? (
                 <div className="mt-3">
                   <SlideEditorPanel
@@ -2163,9 +2203,9 @@ export default function CollaborateChat({
               )
             )}
 
-            <div className="mt-4">
-            <AgentActivity locale={uiLocale}>
-            {changeHistory.length > 0 && (
+            {activeTab === "activity" && (
+              <div className="mt-3">
+                {changeHistory.length > 0 && (
               <div className="border-b bg-background px-3 py-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {uiLocale === "fr" ? "Modifications récentes" : "Recent changes"}
@@ -2296,11 +2336,8 @@ export default function CollaborateChat({
                   {s.editor.send}
                 </button>
               </form>
-            </div>
-            </AgentActivity>
-            </div>
-
-            <EditorCapabilities locale={uiLocale} />
+              </div>
+            )}
           </div>
         </div>
       </div>
