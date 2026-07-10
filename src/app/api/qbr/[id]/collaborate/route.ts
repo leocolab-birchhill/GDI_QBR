@@ -54,6 +54,32 @@ const Schema = z.object({
 
 const CONFIRM_PATTERNS = /^(confirm|confirmer|ok|next|suivant|done|terminé)\.?$/i;
 
+function latestDeckSnapshot(full: Awaited<ReturnType<typeof getQbrFull>>) {
+  const latest = full?.deckVersions[full.deckVersions.length - 1];
+  let content: SlideContent | null = null;
+  if (latest?.contentJson) {
+    try {
+      content = JSON.parse(latest.contentJson) as SlideContent;
+    } catch {
+      content = null;
+    }
+  }
+  return {
+    content,
+    deck: latest
+      ? { fileName: latest.title, fileUrl: latest.fileUrl, versionNumber: latest.versionNumber }
+      : null,
+    options: readDeckOptions(full?.deckOptionsJson),
+    editorProgress: readEditorProgress(full?.editorProgressJson),
+  };
+}
+
+export async function GET(_req: Request, { params }: { params: { id: string } }) {
+  const full = await getQbrFull(params.id);
+  if (!full) return NextResponse.json({ error: "QBR not found" }, { status: 404 });
+  return NextResponse.json({ ok: true, ...latestDeckSnapshot(full) });
+}
+
 function fieldChangesForOps(
   operations: SlideEditOp[],
   full: Awaited<ReturnType<typeof getQbrFull>>,

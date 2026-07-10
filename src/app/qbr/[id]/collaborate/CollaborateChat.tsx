@@ -1610,6 +1610,7 @@ export default function CollaborateChat({
   const threadRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastPollRef = useRef<string>(new Date().toISOString());
+  const lastChangeRefreshRef = useRef<string | null>(null);
 
   const activeThreadSection = isCustomRailKey(activeRailKey)
     ? activeRailKey
@@ -1642,7 +1643,15 @@ export default function CollaborateChat({
         setMessages((prev) => {
           const ids = new Set(prev.map((m) => m.id).filter(Boolean));
           const incoming = data.messages
-            .filter((m: { id: string }) => !ids.has(m.id))
+            .filter((m: { id: string; role: string; text: string; section?: string }) => {
+              if (ids.has(m.id)) return false;
+              return !prev.some((existing) =>
+                (!existing.id || existing.id.startsWith("local-")) &&
+                existing.role === m.role &&
+                existing.text === m.text &&
+                (existing.section ?? undefined) === (m.section ?? undefined),
+              );
+            })
             .map((m: { id: string; role: string; text: string; section?: string; actorName?: string; metadataJson?: string }) => {
               let meta: Record<string, unknown> = {};
               if (m.metadataJson) {
@@ -1686,6 +1695,11 @@ export default function CollaborateChat({
         const data = await response.json();
         const changes = (data.changes ?? []) as ChangeActivity[];
         setChangeHistory(changes);
+        const latestApplied = changes.find((change) => change.status === "applied" || change.status === "reverted");
+        if (latestApplied && latestApplied.id !== lastChangeRefreshRef.current) {
+          lastChangeRefreshRef.current = latestApplied.id;
+          void refreshEditorSnapshot();
+        }
         const current = changes.find((change) => change.id === agent.proposal?.id);
         if (current && current.status !== "proposed") {
           agent.clearProposal();
@@ -1699,6 +1713,22 @@ export default function CollaborateChat({
     const interval = setInterval(pollChanges, 5000);
     return () => clearInterval(interval);
   }, [agent.proposal?.id, agent.clearProposal, qbrId, uiLocale]);
+
+
+  async function refreshEditorSnapshot() {
+    try {
+      const res = await fetch(`/api/qbr/${qbrId}/collaborate`, { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) return;
+      if (data.content) setContent(data.content as SlideContent);
+      if (data.options) setDeckOptions(data.options as DeckOptions);
+      if (data.deck) setLatestDeck(data.deck as DeckRef);
+      if (data.editorProgress) setEditorProgress(data.editorProgress as EditorProgress);
+      setScrollToken((t) => t + 1);
+    } catch {
+      /* polling should never interrupt editing */
+    }
+  }
 
   async function selectRail(key: RailKey) {
     setActiveTab("editor");
@@ -1915,7 +1945,15 @@ export default function CollaborateChat({
     const messageText = text.trim();
     if (!messageText || busy) return;
     setInput("");
-    setMessages((m) => [...m, { role: "user", text: messageText, section: activeSectionParam() }]);
+    setMessages((m) => [
+      ...m,
+      {
+        id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        role: "user",
+        text: messageText,
+        section: activeSectionParam(),
+      },
+    ]);
     setBusy(true);
     try {
       let data: Record<string, unknown>;
