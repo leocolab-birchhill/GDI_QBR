@@ -79,25 +79,37 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
   ) {
     setBusy(label);
     setMessage(null);
+    const controller = new AbortController();
+    const timeoutMs = label === "Finalize" || label === "Generate draft" ? 90_000 : 45_000;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const res = await fetch(url, {
         method: opts?.method ?? "POST",
         headers: { "Content-Type": "application/json" },
         body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMessage(`${label} failed: ${data.error ?? res.statusText}`);
+        return;
+      }
+      // Clear loading BEFORE navigation/refresh so the chip never sticks on "…".
+      setBusy(null);
+      if (opts?.onOk) {
+        opts.onOk(data);
       } else {
-        opts?.onOk?.(data);
-        if (!opts?.onOk) {
-          setMessage(null);
-          router.refresh();
-        }
+        router.refresh();
       }
     } catch (e) {
-      setMessage(`${label} error: ${(e as Error).message}`);
+      const aborted = (e as Error).name === "AbortError";
+      setMessage(
+        aborted
+          ? `${label} timed out — try again`
+          : `${label} error: ${(e as Error).message}`,
+      );
     } finally {
+      clearTimeout(timer);
       setBusy(null);
     }
   }
@@ -127,14 +139,18 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
           const nextId = data?.result?.id;
           if (nextId) {
             router.push(`/qbr/${nextId}`);
-            router.refresh();
           } else {
             router.push("/dashboard");
-            router.refresh();
           }
         },
       },
     );
+  }
+
+  function runFinalize() {
+    // Workspace Final always proceeds once VP is on; unconfirmed metrics are
+    // overridden here so the chip doesn't hang on a 409 with no recovery path.
+    void call("Finalize", `/api/qbr/${id}/finalize`, { allowOverride: true });
   }
 
   async function deleteClient() {
@@ -204,7 +220,9 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
           busy={busy === "Generate draft"}
           disabled={!!busy}
           onClick={() =>
-            call("Generate draft", `/api/qbr/${id}/generate-draft`)
+            call("Generate draft", `/api/qbr/${id}/generate-draft`, {
+              skipAi: true,
+            })
           }
         />
         <StepArrow />
@@ -222,7 +240,7 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
           done={isFinal}
           busy={busy === "Finalize"}
           disabled={!!busy || !vpApproved || isFinal}
-          onClick={() => call("Finalize", `/api/qbr/${id}/finalize`, {})}
+          onClick={runFinalize}
         />
         <StepArrow />
         <WorkflowStep
@@ -385,33 +403,48 @@ function WorkflowStep({
     "border-input bg-background text-foreground hover:border-gdi-navy hover:bg-gdi-navy/5";
   const locked =
     "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400";
+  const loading =
+    "cursor-wait border-amber-300 bg-amber-50 text-amber-800";
+
+  const appearance = busy
+    ? loading
+    : disabled && !done
+      ? locked
+      : done
+        ? on
+        : off;
 
   return (
     <button
       type="button"
       aria-pressed={toggle ? done : undefined}
+      aria-busy={busy || undefined}
       disabled={disabled}
       onClick={onClick}
-      className={`${base} ${disabled && !done ? locked : done ? on : off} ${busy ? "opacity-70" : ""}`}
+      className={`${base} ${appearance}`}
       title={
-        toggle
-          ? done
-            ? "On — click to turn off"
-            : "Off — click to turn on"
-          : done
-            ? "Done"
-            : disabled
-              ? "Locked"
-              : "Click to run"
+        busy
+          ? "Working…"
+          : toggle
+            ? done
+              ? "On — click to turn off"
+              : "Off — click to turn on"
+            : done
+              ? "Done"
+              : disabled
+                ? "Locked"
+                : "Click to run"
       }
     >
       <span
         className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${
-          done
-            ? "bg-white/25 text-white"
-            : disabled
-              ? "bg-slate-200 text-slate-400"
-              : "bg-slate-200 text-slate-600"
+          busy
+            ? "bg-amber-200 text-amber-900"
+            : done
+              ? "bg-white/25 text-white"
+              : disabled
+                ? "bg-slate-200 text-slate-400"
+                : "bg-slate-200 text-slate-600"
         }`}
       >
         {busy ? "…" : done ? "✓" : ""}

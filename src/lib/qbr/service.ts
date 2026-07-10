@@ -1188,7 +1188,12 @@ export async function finalize(
     allowOverride: opts?.allowOverride,
   });
 
-  const result = await generateDraft(qbrCycleId, { final: true });
+  const result = await generateDraft(qbrCycleId, {
+    final: true,
+    // Finalize from the live structured state — do not re-run the AI drafter
+    // (slow, and can leave the UI stuck on "Final…" for minutes).
+    skipAi: true,
+  });
   await setStatus(qbrCycleId, "READY_FOR_MEETING");
   await audit({
     entityType: "QbrCycle",
