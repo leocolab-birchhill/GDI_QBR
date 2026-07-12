@@ -91,20 +91,24 @@ export function localizeSlideContentForLocale(content: SlideContent, locale: Loc
     priorityItems: content.priorityItems.map((p) => ({ ...p })),
     dashboard: {
       healthAndSafety: content.dashboard.healthAndSafety.map((r) => ({
+        id: r.id,
         label: localizeMetricLabel(r.label, locale),
         value: localizeValue(r.value, locale),
       })),
       operational: content.dashboard.operational.map((r) => ({
+        id: r.id,
         label: localizeMetricLabel(r.label, locale),
         value: localizeValue(r.value, locale),
       })),
       financial: content.dashboard.financial.map((r) => ({
+        id: r.id,
         label: localizeMetricLabel(r.label, locale),
         value: localizeValue(r.value, locale),
       })),
       customGroups: content.dashboard.customGroups?.map((g) => ({
         title: g.title,
         rows: g.rows.map((r) => ({
+          id: r.id,
           label: localizeMetricLabel(r.label, locale),
           value: localizeValue(r.value, locale),
         })),

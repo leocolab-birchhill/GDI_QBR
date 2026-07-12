@@ -4,7 +4,7 @@ import { audit } from "../audit";
 import { rewriteClientSafe } from "../ai";
 import { ExtractionResult, SlideEditOp } from "../ai/schemas";
 import { TO_CONFIRM, QbrStatus, METRIC_GROUPS } from "../constants";
-import { resolveQbrLocale } from "../i18n";
+import { resolveQbrLocale, localizeMetricLabel } from "../i18n";
 import { generateQbrDeck, DeckOptions } from "../ppt/generateQbrDeck";
 import { saveFile, readFile } from "../storage";
 import { buildSlideContent } from "./slideContent";
@@ -389,6 +389,36 @@ export async function applyExtraction(
 }
 
 /**
+ * Locate the DB row an edit operation targets.
+ *
+ * Preference order: exact row id (sent by the form editor), then normalized
+ * text match on each provided key field. The text fallbacks matter because the
+ * deck shows `clientReadyText` (normalized / AI-rewritten / translated), so an
+ * op built from display text may not equal the row's primary field — matching
+ * only the primary field silently no-ops the edit and the "deleted" item
+ * reappears on the next regeneration.
+ */
+export function findTargetItem<T extends { id: string }>(
+  items: T[],
+  itemId: string | null | undefined,
+  candidateKeys: (string | null | undefined)[],
+  getKeys: ((item: T) => string | null | undefined)[],
+): T | undefined {
+  if (itemId) {
+    const byId = items.find((item) => item.id === itemId);
+    if (byId) return byId;
+  }
+  for (const key of candidateKeys) {
+    if (!key) continue;
+    for (const getKey of getKeys) {
+      const match = findExisting(items, key, getKey);
+      if (match) return match;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Apply structured slide-edit operations (from the collaboration chat agent) to
  * a cycle's deck data. Returns human-readable descriptions of what changed so
  * the chat can confirm them. Unknown/duplicate targets are matched by
@@ -403,20 +433,33 @@ export async function applySlideEdits(
   for (const op of operations) {
     switch (op.type) {
       case "set_metric": {
-        if (!op.label) break;
+        if (!op.label && !op.itemId) break;
         const value = op.value?.trim() || TO_CONFIRM;
         const group = normalizeGroup(op.group ?? undefined);
         const metrics = await prisma.dashboardMetric.findMany({
           where: { qbrCycleId },
         });
-        const match = findExisting(metrics, op.label, (m) => m.label);
+        // Try the label as sent plus its glossary translations, so a metric
+        // displayed in French still matches its English DB row (and back).
+        const match = findTargetItem(
+          metrics,
+          op.itemId,
+          [op.label, op.label && localizeMetricLabel(op.label, "en"), op.label && localizeMetricLabel(op.label, "fr")],
+          [(m) => m.label],
+        );
         if (match) {
           await prisma.dashboardMetric.update({
             where: { id: match.id },
-            data: { value, group, isConfirmed: value !== TO_CONFIRM },
+            data: {
+              // An id-targeted op may rename the metric; keep the old label otherwise.
+              label: op.itemId && op.label ? op.label : match.label,
+              value,
+              group,
+              isConfirmed: value !== TO_CONFIRM,
+            },
           });
-          changes.push(`Updated metric "${op.label}" → ${value}`);
-        } else {
+          changes.push(`Updated metric "${op.label ?? match.label}" → ${value}`);
+        } else if (op.label) {
           await prisma.dashboardMetric.create({
             data: {
               qbrCycleId,
@@ -432,14 +475,19 @@ export async function applySlideEdits(
         break;
       }
       case "remove_metric": {
-        if (!op.label) break;
+        if (!op.label && !op.itemId) break;
         const metrics = await prisma.dashboardMetric.findMany({
           where: { qbrCycleId },
         });
-        const match = findExisting(metrics, op.label, (m) => m.label);
+        const match = findTargetItem(
+          metrics,
+          op.itemId,
+          [op.label, op.label && localizeMetricLabel(op.label, "en"), op.label && localizeMetricLabel(op.label, "fr")],
+          [(m) => m.label],
+        );
         if (match) {
           await prisma.dashboardMetric.delete({ where: { id: match.id } });
-          changes.push(`Removed metric "${op.label}"`);
+          changes.push(`Removed metric "${op.label ?? match.label}"`);
         }
         break;
       }
@@ -469,11 +517,15 @@ export async function applySlideEdits(
         break;
       }
       case "reword_priority": {
-        if (!op.title) break;
+        if (!op.title && !op.itemId) break;
         const priorities = await prisma.priorityItem.findMany({
           where: { qbrCycleId },
         });
-        const match = findExisting(priorities, op.title, (p) => p.title);
+        const match = findTargetItem(priorities, op.itemId, [op.title], [
+          (p) => p.title,
+          (p) => p.clientReadyText,
+          (p) => p.rawInput,
+        ]);
         // Rename the priority to the user's exact new wording. When the request
         // carries replacement text, treat it as the new TITLE verbatim (the
         // headline shown on the slide); keep existing body unless one is given.
@@ -492,14 +544,18 @@ export async function applySlideEdits(
         break;
       }
       case "remove_priority": {
-        if (!op.title) break;
+        if (!op.title && !op.itemId) break;
         const priorities = await prisma.priorityItem.findMany({
           where: { qbrCycleId },
         });
-        const match = findExisting(priorities, op.title, (p) => p.title);
+        const match = findTargetItem(priorities, op.itemId, [op.title], [
+          (p) => p.title,
+          (p) => p.clientReadyText,
+          (p) => p.rawInput,
+        ]);
         if (match) {
           await prisma.priorityItem.delete({ where: { id: match.id } });
-          changes.push(`Removed priority "${op.title}"`);
+          changes.push(`Removed priority "${op.title ?? match.title}"`);
         }
         break;
       }
@@ -524,14 +580,18 @@ export async function applySlideEdits(
         break;
       }
       case "remove_upcoming": {
-        if (!op.title) break;
+        if (!op.title && !op.itemId) break;
         const upcoming = await prisma.upcomingItem.findMany({
           where: { qbrCycleId },
         });
-        const match = findExisting(upcoming, op.title, (u) => u.title);
+        const match = findTargetItem(upcoming, op.itemId, [op.title], [
+          (u) => u.title,
+          (u) => u.clientReadyText,
+          (u) => u.rawInput,
+        ]);
         if (match) {
           await prisma.upcomingItem.delete({ where: { id: match.id } });
-          changes.push(`Removed what's-next item "${op.title}"`);
+          changes.push(`Removed what's-next item "${op.title ?? match.title}"`);
         }
         break;
       }
@@ -540,9 +600,14 @@ export async function applySlideEdits(
         const commitments = await prisma.commitment.findMany({
           where: { qbrCycleId },
         });
-        if (findExisting(commitments, op.action, (c) => c.action)) break;
-        const safe = (await rewriteClientSafe({ rawText: op.action }))
-          .clientReadyText;
+        if (
+          findExisting(commitments, op.action, (c) => c.action) ||
+          findExisting(commitments, op.action, (c) => c.clientReadyText)
+        )
+          break;
+        // Honor the user's exact wording (same policy as add_priority). Running
+        // the AI rewriter here made the slide show text that differed from the
+        // stored action, which then broke later edits/removals of that row.
         await prisma.commitment.create({
           data: {
             qbrCycleId,
@@ -551,7 +616,7 @@ export async function applySlideEdits(
             owner: op.owner ?? null,
             dueDate: parseDate(op.date),
             rawInput: op.action,
-            clientReadyText: safe,
+            clientReadyText: op.action,
             isClientSafe: true,
             source: "editor",
           },
@@ -560,35 +625,42 @@ export async function applySlideEdits(
         break;
       }
       case "set_commitment_status": {
-        if (!op.action) break;
+        if (!op.action && !op.itemId) break;
         const commitments = await prisma.commitment.findMany({
           where: { qbrCycleId },
         });
-        const match = findExisting(commitments, op.action, (c) => c.action);
+        const match = findTargetItem(commitments, op.itemId, [op.action], [
+          (c) => c.action,
+          (c) => c.clientReadyText,
+        ]);
         if (match) {
           await prisma.commitment.update({
             where: { id: match.id },
             data: {
               status: op.status || match.status,
-              owner: op.owner ?? match.owner,
-              dueDate: parseDate(op.date) ?? match.dueDate,
+              // Empty string is an explicit "clear"; undefined/null keeps current.
+              owner: op.owner === "" ? null : op.owner ?? match.owner,
+              dueDate: op.date === "" ? null : parseDate(op.date) ?? match.dueDate,
             },
           });
           changes.push(
-            `Updated follow-up "${match.action}" → ${op.status || match.status}`,
+            `Updated follow-up "${match.clientReadyText || match.action}" → ${op.status || match.status}`,
           );
         }
         break;
       }
       case "remove_commitment": {
-        if (!op.action) break;
+        if (!op.action && !op.itemId) break;
         const commitments = await prisma.commitment.findMany({
           where: { qbrCycleId },
         });
-        const match = findExisting(commitments, op.action, (c) => c.action);
+        const match = findTargetItem(commitments, op.itemId, [op.action], [
+          (c) => c.action,
+          (c) => c.clientReadyText,
+        ]);
         if (match) {
           await prisma.commitment.delete({ where: { id: match.id } });
-          changes.push(`Removed follow-up "${op.action}"`);
+          changes.push(`Removed follow-up "${op.action ?? match.action}"`);
         }
         break;
       }
@@ -612,7 +684,16 @@ export async function applySlideEdits(
           .split(/\n|,/)
           .map((item) => item.trim())
           .filter(Boolean);
-        if (agenda.length === 0) break;
+        if (agenda.length === 0) {
+          // Clearing all lines resets the slide to the default agenda instead of
+          // silently ignoring the save (which left the editor looking stuck).
+          await prisma.qbrCycle.update({
+            where: { id: qbrCycleId },
+            data: { agendaSectionsJson: null },
+          });
+          changes.push("Reset agenda to the default sections");
+          break;
+        }
         await prisma.qbrCycle.update({
           where: { id: qbrCycleId },
           data: { agendaSectionsJson: JSON.stringify(agenda) },

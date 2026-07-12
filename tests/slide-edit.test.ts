@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseSlideEditFallback } from "@/lib/qbr/slideEditFallback";
+import { findTargetItem } from "@/lib/qbr/service";
 import { AnswerContext } from "@/lib/qbr/answer";
 
 function ctx(overrides: Partial<AnswerContext> = {}): AnswerContext {
@@ -124,5 +125,54 @@ describe("deterministic slide-edit parser", () => {
     const r = parseSlideEditFallback("hide the Financial dashboard section", ctx());
     expect(r.operations[0]).toMatchObject({ type: "remove_dashboard_group", group: "Financial" });
     expect(r.regenerate).toBe(true);
+  });
+});
+
+describe("findTargetItem (edit-op row matching)", () => {
+  // The slide shows clientReadyText, which can be a rewritten/translated
+  // version of the stored action — deletes and edits must still find the row.
+  const commitments = [
+    { id: "c1", action: "fix dock door asap!!", clientReadyText: "Resolve the loading dock door issue." },
+    { id: "c2", action: "Send updated invoice", clientReadyText: "Send updated invoice." },
+  ];
+
+  it("matches by exact row id first, even when all text differs (e.g. translated deck)", () => {
+    const match = findTargetItem(commitments, "c1", ["Résoudre le problème de la porte du quai."], [
+      (c) => c.action,
+      (c) => c.clientReadyText,
+    ]);
+    expect(match?.id).toBe("c1");
+  });
+
+  it("falls back to the primary text field with normalized matching", () => {
+    const match = findTargetItem(commitments, undefined, ["send updated invoice"], [
+      (c) => c.action,
+      (c) => c.clientReadyText,
+    ]);
+    expect(match?.id).toBe("c2");
+  });
+
+  it("falls back to clientReadyText when the op carries the rewritten display text", () => {
+    const match = findTargetItem(commitments, undefined, ["Resolve the loading dock door issue"], [
+      (c) => c.action,
+      (c) => c.clientReadyText,
+    ]);
+    expect(match?.id).toBe("c1");
+  });
+
+  it("returns undefined when nothing matches (new/unknown item)", () => {
+    const match = findTargetItem(commitments, undefined, ["Completely different action"], [
+      (c) => c.action,
+      (c) => c.clientReadyText,
+    ]);
+    expect(match).toBeUndefined();
+  });
+
+  it("ignores a stale itemId and still resolves via text", () => {
+    const match = findTargetItem(commitments, "gone", ["Send updated invoice."], [
+      (c) => c.action,
+      (c) => c.clientReadyText,
+    ]);
+    expect(match?.id).toBe("c2");
   });
 });

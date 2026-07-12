@@ -12,12 +12,11 @@ import type { SlideContent } from "@/lib/ai/schemas";
 
 describe("deck reorder", () => {
   const base: SlideContent = {
-    clientName: "Acme",
-    quarterYear: "Q1 2026",
+    title: { clientName: "Acme", quarterYear: "Q1 2026", meetingMonthYear: "June 2026" },
     agenda: [],
     followUps: [],
-    priorities: [],
-    dashboard: [],
+    priorityItems: [],
+    dashboard: { healthAndSafety: [], operational: [], financial: [] },
     whatsNext: [],
     customSlides: [
       {
@@ -57,7 +56,9 @@ describe("deck reorder", () => {
 
   it("computes section order and custom slide patches", () => {
     const items = buildReorderItems(base);
-    const reordered = moveReorderItem(moveReorderItem(items, 5, -3), 4, -1);
+    // Move "dashboard" up three slots (one step at a time), then "priorities" up one.
+    const dashboardUp = moveReorderItem(moveReorderItem(moveReorderItem(items, 5, -1), 4, -1), 3, -1);
+    const reordered = moveReorderItem(dashboardUp, 4, -1);
     const patches = computeReorderPatches(base, reordered);
     expect(patches).toHaveLength(2);
     expect(patches[0]).toMatchObject({

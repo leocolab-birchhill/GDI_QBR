@@ -98,6 +98,19 @@ export const CustomSlideSchema = z.object({
 });
 export type CustomSlide = z.infer<typeof CustomSlideSchema>;
 
+/**
+ * `id` fields carry the database row id of each item so the editor can target
+ * add/remove/update operations at the exact row instead of matching display
+ * text (which is normalized, AI-rewritten, or translated and may not equal the
+ * stored text). Optional because AI-drafted or legacy snapshots lack them —
+ * consumers must fall back to text matching when absent.
+ */
+const DashboardRowSchema = z.object({
+  id: z.string().optional(),
+  label: z.string(),
+  value: z.string(),
+});
+
 export const SlideContentSchema = z.object({
   title: z.object({
     clientName: z.string(),
@@ -107,32 +120,37 @@ export const SlideContentSchema = z.object({
   agenda: z.array(z.string()),
   followUps: z.array(
     z.object({
+      id: z.string().optional(),
       number: z.number(),
       action: z.string(),
       status: z.string(),
       owner: z.string(),
       dueDate: z.string(),
+      /** ISO yyyy-mm-dd of the due date (dueDate itself is a display string). */
+      dueDateIso: z.string().optional(),
     }),
   ),
   priorityItems: z.array(
-    z.object({ number: z.number(), title: z.string(), explanation: z.string() }),
+    z.object({ id: z.string().optional(), number: z.number(), title: z.string(), explanation: z.string() }),
   ),
   dashboard: z.object({
-    healthAndSafety: z.array(z.object({ label: z.string(), value: z.string() })),
-    operational: z.array(z.object({ label: z.string(), value: z.string() })),
-    financial: z.array(z.object({ label: z.string(), value: z.string() })),
+    healthAndSafety: z.array(DashboardRowSchema),
+    operational: z.array(DashboardRowSchema),
+    financial: z.array(DashboardRowSchema),
     customGroups: z
       .array(
         z.object({
           title: z.string(),
-          rows: z.array(z.object({ label: z.string(), value: z.string() })),
+          rows: z.array(DashboardRowSchema),
         }),
       )
       .optional(),
     /** Dashboard group titles (standard or custom) hidden from the deck. */
     hiddenGroups: z.array(z.string()).optional(),
   }),
-  whatsNext: z.array(z.object({ number: z.number(), title: z.string(), detail: z.string() })),
+  whatsNext: z.array(
+    z.object({ id: z.string().optional(), number: z.number(), title: z.string(), detail: z.string() }),
+  ),
   /** User-created slides inserted between the built-in sections. */
   customSlides: z.array(CustomSlideSchema).optional(),
   /** Built-in sections hidden from the rendered deck ("title" never hides). */
@@ -219,6 +237,12 @@ export const SLIDE_EDIT_OPS = [
 
 export const SlideEditOpSchema = z.object({
   type: z.enum(SLIDE_EDIT_OPS),
+  /**
+   * Database row id of the item this op targets (commitment / priority /
+   * upcoming item / dashboard metric). When present the server matches the row
+   * exactly; text fields are only a fallback for ops produced from free text.
+   */
+  itemId: z.string().nullable().optional(),
   group: z.string().nullable().optional(),
   label: z.string().nullable().optional(),
   value: z.string().nullable().optional(),

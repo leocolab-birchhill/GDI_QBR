@@ -134,11 +134,29 @@ type SlideStatus = "in_progress" | "complete" | "needs_review";
 
 interface FollowUpRow {
   id: string;
+  /** DB row id (from content) — the reliable target for edit/remove ops. */
+  itemId?: string;
   originalAction?: string;
   agreedAction: string;
   status: string;
   owner: string;
   dueDate: string;
+}
+
+/**
+ * Stable identity of a row loaded from the server: DB id when the snapshot
+ * carries one, otherwise the display text. New (unsaved) rows have none.
+ */
+function savedRowKey(row: { itemId?: string }, originalText?: string): string | undefined {
+  if (row.itemId) return `id:${row.itemId}`;
+  return originalText ? `text:${originalText}` : undefined;
+}
+
+const UNSET_OWNER_SENTINELS = new Set(["to confirm", "à confirmer", "a confirmer"]);
+
+function ownerFromDisplay(owner: string | undefined): string {
+  const o = (owner ?? "").trim();
+  return UNSET_OWNER_SENTINELS.has(o.toLowerCase()) ? "" : o;
 }
 
 function newRowId(): string {
@@ -158,11 +176,14 @@ function followUpsFromContent(content: SlideContent | null): FollowUpRow[] {
   if (!content?.followUps.length) return [];
   return content.followUps.map((f) => ({
     id: newRowId(),
+    itemId: f.id,
     originalAction: f.action,
     agreedAction: f.action,
     status: f.status || "Open",
-    owner: f.owner || "",
-    dueDate: f.dueDate || "",
+    owner: ownerFromDisplay(f.owner),
+    // Prefer the ISO date so the date input actually shows the stored value
+    // (the display string is a localized long date the input can't parse).
+    dueDate: f.dueDateIso || f.dueDate || "",
   }));
 }
 
@@ -175,26 +196,40 @@ function followUpRowsEqual(a: FollowUpRow[], b: FollowUpRow[]): boolean {
       row.status === other.status &&
       row.owner === other.owner &&
       row.dueDate === other.dueDate &&
+      row.itemId === other.itemId &&
       row.originalAction === other.originalAction
     );
   });
 }
 
+/**
+ * Due-date op value: ISO sets it, empty string clears it, anything else
+ * ("To confirm" sentinel or an unparsed legacy display date) keeps the current.
+ */
+function dueDateOpValue(dueDate: string): string | undefined {
+  if (isIsoDate(dueDate)) return dueDate;
+  if (!dueDate.trim()) return "";
+  return undefined;
+}
+
 function buildFollowUpOps(saved: FollowUpRow[], draft: FollowUpRow[]): SlideEditOp[] {
   const ops: SlideEditOp[] = [];
-  const draftByOrig = new Map(draft.filter((r) => r.originalAction).map((r) => [r.originalAction!, r]));
+  const keyOf = (r: FollowUpRow) => savedRowKey(r, r.originalAction);
+  const draftKeys = new Set(draft.map(keyOf).filter(Boolean));
 
   for (const row of saved) {
-    if (!row.originalAction) continue;
-    if (!draftByOrig.has(row.originalAction)) {
-      ops.push({ type: "remove_commitment", action: row.originalAction });
+    const key = keyOf(row);
+    if (key && !draftKeys.has(key)) {
+      ops.push({ type: "remove_commitment", itemId: row.itemId, action: row.originalAction });
     }
   }
 
   for (const row of draft) {
     const action = row.agreedAction.trim();
     if (!action) continue;
-    if (!row.originalAction) {
+    const key = keyOf(row);
+    const savedRow = key ? saved.find((s) => keyOf(s) === key) : undefined;
+    if (!savedRow) {
       ops.push({
         type: "add_commitment",
         action,
@@ -204,10 +239,10 @@ function buildFollowUpOps(saved: FollowUpRow[], draft: FollowUpRow[]): SlideEdit
       });
       continue;
     }
-    const savedRow = saved.find((s) => s.originalAction === row.originalAction);
-    if (!savedRow) continue;
-    if (row.originalAction !== action) {
-      ops.push({ type: "remove_commitment", action: row.originalAction });
+    if (savedRow.agreedAction !== action) {
+      // The action text is the row's headline — rewrite it as remove + add so
+      // the server stores the user's exact new wording.
+      ops.push({ type: "remove_commitment", itemId: row.itemId, action: row.originalAction });
       ops.push({
         type: "add_commitment",
         action,
@@ -224,10 +259,12 @@ function buildFollowUpOps(saved: FollowUpRow[], draft: FollowUpRow[]): SlideEdit
     ) {
       ops.push({
         type: "set_commitment_status",
+        itemId: row.itemId,
         action: row.originalAction,
         status: row.status,
-        owner: row.owner.trim() || undefined,
-        date: isIsoDate(row.dueDate) ? row.dueDate : undefined,
+        // Empty string explicitly clears the owner on the server.
+        owner: row.owner.trim(),
+        date: dueDateOpValue(row.dueDate),
       });
     }
   }
@@ -237,6 +274,8 @@ function buildFollowUpOps(saved: FollowUpRow[], draft: FollowUpRow[]): SlideEdit
 /** A numbered title + body row shared by the Priority Items and What's Next lists. */
 interface ProseRow {
   id: string;
+  /** DB row id (from content) — the reliable target for edit/remove ops. */
+  itemId?: string;
   /** The item's title at load time; used to target edit/remove ops. Absent = new row. */
   originalTitle?: string;
   title: string;
@@ -245,6 +284,8 @@ interface ProseRow {
 
 interface MetricRow {
   id: string;
+  /** DB row id (from content) — the reliable target for edit/remove ops. */
+  itemId?: string;
   originalLabel?: string;
   group: string;
   label: string;
@@ -254,6 +295,7 @@ interface MetricRow {
 function prioritiesFromContent(content: SlideContent | null): ProseRow[] {
   return (content?.priorityItems ?? []).map((p) => ({
     id: newRowId(),
+    itemId: p.id,
     originalTitle: p.title,
     title: p.title,
     body: p.explanation,
@@ -263,6 +305,7 @@ function prioritiesFromContent(content: SlideContent | null): ProseRow[] {
 function upcomingFromContent(content: SlideContent | null): ProseRow[] {
   return (content?.whatsNext ?? []).map((u) => ({
     id: newRowId(),
+    itemId: u.id,
     originalTitle: u.title,
     title: u.title,
     body: u.detail,
@@ -273,8 +316,9 @@ function metricsFromContent(content: SlideContent | null): MetricRow[] {
   if (!content) return [];
   const d = content.dashboard;
   const out: MetricRow[] = [];
-  const push = (group: string, rows: { label: string; value: string }[]) => {
-    for (const r of rows) out.push({ id: newRowId(), originalLabel: r.label, group, label: r.label, value: r.value });
+  const push = (group: string, rows: { id?: string; label: string; value: string }[]) => {
+    for (const r of rows)
+      out.push({ id: newRowId(), itemId: r.id, originalLabel: r.label, group, label: r.label, value: r.value });
   };
   push("Health & Safety", d.healthAndSafety);
   push("Operational", d.operational);
@@ -286,22 +330,41 @@ function metricsFromContent(content: SlideContent | null): MetricRow[] {
 /** The standard, non-removable dashboard categories (always shown on the deck). */
 const STANDARD_CATEGORIES: string[] = [...METRIC_GROUPS];
 
-/** All categories available in the editor: the standard three plus any custom ones in the deck. */
+/**
+ * All categories available in the editor: the standard three, every custom
+ * group present in the deck (including empty ones — they still render a slide
+ * column), and any group referenced by a metric row.
+ */
 function categoriesFromContent(content: SlideContent | null): string[] {
+  const fromGroups = (content?.dashboard.customGroups ?? []).map((g) => g.title);
   const fromRows = metricsFromContent(content).map((r) => r.group);
-  return Array.from(new Set([...STANDARD_CATEGORIES, ...fromRows]));
+  return Array.from(new Set([...STANDARD_CATEGORIES, ...fromGroups, ...fromRows]));
 }
 
 function proseRowsEqual(a: ProseRow[], b: ProseRow[]): boolean {
   if (a.length !== b.length) return false;
-  return a.every((row, i) => row.title === b[i].title && row.body === b[i].body && row.originalTitle === b[i].originalTitle);
+  return a.every(
+    (row, i) =>
+      row.title === b[i].title && row.body === b[i].body && row.itemId === b[i].itemId && row.originalTitle === b[i].originalTitle,
+  );
 }
 
 function metricRowsEqual(a: MetricRow[], b: MetricRow[]): boolean {
   if (a.length !== b.length) return false;
   return a.every(
-    (row, i) => row.group === b[i].group && row.label === b[i].label && row.value === b[i].value && row.originalLabel === b[i].originalLabel,
+    (row, i) =>
+      row.group === b[i].group &&
+      row.label === b[i].label &&
+      row.value === b[i].value &&
+      row.itemId === b[i].itemId &&
+      row.originalLabel === b[i].originalLabel,
   );
+}
+
+function stringSetsEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const setB = new Set(b);
+  return a.every((item) => setB.has(item));
 }
 
 /** Diff saved vs draft prose rows into add/remove ops (edits become remove+add). */
@@ -312,10 +375,12 @@ function buildProseOps(
   removeType: "remove_priority" | "remove_upcoming",
 ): SlideEditOp[] {
   const ops: SlideEditOp[] = [];
-  const draftByOrig = new Set(draft.filter((r) => r.originalTitle).map((r) => r.originalTitle!));
+  const keyOf = (r: ProseRow) => savedRowKey(r, r.originalTitle);
+  const draftKeys = new Set(draft.map(keyOf).filter(Boolean));
   for (const row of saved) {
-    if (row.originalTitle && !draftByOrig.has(row.originalTitle)) {
-      ops.push({ type: removeType, title: row.originalTitle });
+    const key = keyOf(row);
+    if (key && !draftKeys.has(key)) {
+      ops.push({ type: removeType, itemId: row.itemId, title: row.originalTitle });
     }
   }
   for (const row of draft) {
@@ -326,14 +391,14 @@ function buildProseOps(
       addType === "add_priority"
         ? { type: "add_priority", title, explanation: body }
         : { type: "add_upcoming", title, detail: body };
-    if (!row.originalTitle) {
+    const key = keyOf(row);
+    const savedRow = key ? saved.find((s) => keyOf(s) === key) : undefined;
+    if (!savedRow) {
       ops.push(addOp);
       continue;
     }
-    const savedRow = saved.find((s) => s.originalTitle === row.originalTitle);
-    if (!savedRow) continue;
     if (savedRow.title !== title || savedRow.body !== row.body) {
-      ops.push({ type: removeType, title: row.originalTitle });
+      ops.push({ type: removeType, itemId: row.itemId, title: row.originalTitle });
       ops.push(addOp);
     }
   }
@@ -342,10 +407,12 @@ function buildProseOps(
 
 function buildMetricOps(saved: MetricRow[], draft: MetricRow[]): SlideEditOp[] {
   const ops: SlideEditOp[] = [];
-  const draftByOrig = new Set(draft.filter((r) => r.originalLabel).map((r) => r.originalLabel!));
+  const keyOf = (r: MetricRow) => savedRowKey(r, r.originalLabel);
+  const draftKeys = new Set(draft.map(keyOf).filter(Boolean));
   for (const row of saved) {
-    if (row.originalLabel && !draftByOrig.has(row.originalLabel)) {
-      ops.push({ type: "remove_metric", label: row.originalLabel });
+    const key = keyOf(row);
+    if (key && !draftKeys.has(key)) {
+      ops.push({ type: "remove_metric", itemId: row.itemId, label: row.originalLabel });
     }
   }
   for (const row of draft) {
@@ -353,17 +420,19 @@ function buildMetricOps(saved: MetricRow[], draft: MetricRow[]): SlideEditOp[] {
     if (!label) continue;
     const group = row.group.trim() || "Operational";
     const value = row.value.trim() || undefined;
-    if (!row.originalLabel) {
+    const key = keyOf(row);
+    const savedRow = key ? saved.find((s) => keyOf(s) === key) : undefined;
+    if (!savedRow) {
       ops.push({ type: "set_metric", group, label, value });
       continue;
     }
-    const savedRow = saved.find((s) => s.originalLabel === row.originalLabel);
-    if (!savedRow) continue;
-    if (savedRow.label !== label) {
+    if (savedRow.label !== label && !row.itemId) {
+      // No row id to rename against — replace by text.
       ops.push({ type: "remove_metric", label: row.originalLabel });
       ops.push({ type: "set_metric", group, label, value });
-    } else if (savedRow.group !== row.group || savedRow.value !== row.value) {
-      ops.push({ type: "set_metric", group, label, value });
+    } else if (savedRow.label !== label || savedRow.group !== row.group || savedRow.value !== row.value) {
+      // set_metric with an itemId updates (and can rename) the exact row.
+      ops.push({ type: "set_metric", itemId: row.itemId, group, label, value });
     }
   }
   return ops;
@@ -464,6 +533,10 @@ function FollowUpsTable({
                     value={row.status}
                     onChange={(e) => updateRow(row.id, { status: e.target.value })}
                   >
+                    {/* Keep the row's own status selectable (e.g. localized "Ouvert"). */}
+                    {!["Open", "In Progress", "Complete"].includes(row.status) && (
+                      <option value={row.status}>{row.status}</option>
+                    )}
                     <option>Open</option>
                     <option>In Progress</option>
                     <option>Complete</option>
@@ -770,6 +843,7 @@ function SlideFormContent({
   const [metricRows, setMetricRows] = useState<MetricRow[]>(() => metricsFromContent(content));
   const [savedMetricRows, setSavedMetricRows] = useState<MetricRow[]>(() => metricsFromContent(content));
   const [metricCategories, setMetricCategories] = useState<string[]>(() => categoriesFromContent(content));
+  const [savedMetricCategories, setSavedMetricCategories] = useState<string[]>(() => categoriesFromContent(content));
   const [closingNote, setClosingNote] = useState("");
 
   const inputClass = "rounded-md border bg-background px-2 py-1.5 text-xs";
@@ -791,7 +865,9 @@ function SlideFormContent({
     const mRows = metricsFromContent(content);
     setMetricRows(mRows);
     setSavedMetricRows(mRows);
-    setMetricCategories(categoriesFromContent(content));
+    const cats = categoriesFromContent(content);
+    setMetricCategories(cats);
+    setSavedMetricCategories(cats);
     setClosingNote("");
   }, [section, resetToken, clientName, content, initialMeetingDate]);
 
@@ -805,7 +881,9 @@ function SlideFormContent({
       return ops;
     }
     if (section === "agenda") {
-      if (!agendaText.trim()) return [];
+      const savedAgenda = content?.agenda.join("\n") ?? "";
+      if (agendaText.trim() === savedAgenda.trim()) return [];
+      // An empty agenda is a valid save: the server resets to the defaults.
       return [{ type: "set_agenda", detail: agendaText }];
     }
     if (section === "followUps") {
@@ -815,7 +893,19 @@ function SlideFormContent({
       return buildProseOps(savedPriorityRows, priorityRows, "add_priority", "remove_priority");
     }
     if (section === "dashboard") {
-      return buildMetricOps(savedMetricRows, metricRows);
+      const ops = buildMetricOps(savedMetricRows, metricRows);
+      // Persist category (dashboard group) additions/removals — without these
+      // ops an added empty category vanished on save and a removed category
+      // came back from the stored layout.
+      for (const cat of metricCategories) {
+        if (STANDARD_CATEGORIES.includes(cat) || savedMetricCategories.includes(cat)) continue;
+        ops.push({ type: "add_dashboard_group", title: cat });
+      }
+      for (const cat of savedMetricCategories) {
+        if (STANDARD_CATEGORIES.includes(cat) || metricCategories.includes(cat)) continue;
+        ops.push({ type: "remove_dashboard_group", group: cat });
+      }
+      return ops;
     }
     if (section === "whatsNext") {
       return buildProseOps(savedUpcomingRows, upcomingRows, "add_upcoming", "remove_upcoming");
@@ -831,6 +921,7 @@ function SlideFormContent({
     meetingDate,
     initialMeetingDate,
     agendaText,
+    content?.agenda,
     followUpRows,
     savedFollowUpRows,
     priorityRows,
@@ -839,6 +930,8 @@ function SlideFormContent({
     savedUpcomingRows,
     metricRows,
     savedMetricRows,
+    metricCategories,
+    savedMetricCategories,
     closingNote,
   ]);
 
@@ -866,7 +959,9 @@ function SlideFormContent({
       return;
     }
     if (section === "dashboard") {
-      onDirtyChange(!metricRowsEqual(savedMetricRows, metricRows));
+      onDirtyChange(
+        !metricRowsEqual(savedMetricRows, metricRows) || !stringSetsEqual(savedMetricCategories, metricCategories),
+      );
       return;
     }
     if (section === "whatsNext") {
@@ -894,6 +989,8 @@ function SlideFormContent({
     savedUpcomingRows,
     metricRows,
     savedMetricRows,
+    metricCategories,
+    savedMetricCategories,
     closingNote,
     onDirtyChange,
   ]);
@@ -1030,6 +1127,7 @@ function SlideEditorPanel({
   onComplete,
   onReopen,
   onSuggestionClick,
+  onDirtyStateChange,
   compact = false,
 }: {
   progress: EditorProgress;
@@ -1047,6 +1145,8 @@ function SlideEditorPanel({
   onComplete: () => void;
   onReopen: () => void;
   onSuggestionClick: (text: string) => void;
+  /** Lets the parent know the form has unsaved edits (guards background refreshes). */
+  onDirtyStateChange?: (dirty: boolean) => void;
   compact?: boolean;
 }) {
   const s = getStrings(locale);
@@ -1076,6 +1176,10 @@ function SlideEditorPanel({
   useEffect(() => {
     setHasUnsaved(false);
   }, [section, activeRailKey]);
+
+  useEffect(() => {
+    onDirtyStateChange?.(hasUnsaved);
+  }, [hasUnsaved, onDirtyStateChange]);
 
   const statusLabel =
     status === "complete"
@@ -1666,6 +1770,14 @@ export default function CollaborateChat({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastPollRef = useRef<string>(new Date().toISOString());
   const lastChangeRefreshRef = useRef<string | null>(null);
+  // Refs (not state) so the 5s polling closures always see the live values:
+  // a background snapshot refresh must never wipe a form the user is editing
+  // or race with a save that is currently in flight.
+  const formDirtyRef = useRef(false);
+  const formBusyRef = useRef(false);
+  const handleFormDirtyChange = useCallback((dirty: boolean) => {
+    formDirtyRef.current = dirty;
+  }, []);
 
   const activeThreadSection = isCustomRailKey(activeRailKey)
     ? activeRailKey
@@ -1752,8 +1864,12 @@ export default function CollaborateChat({
         setChangeHistory(changes);
         const latestApplied = changes.find((change) => change.status === "applied" || change.status === "reverted");
         if (latestApplied && latestApplied.id !== lastChangeRefreshRef.current) {
-          lastChangeRefreshRef.current = latestApplied.id;
-          void refreshEditorSnapshot();
+          // Defer (don't consume the change id) while the user has unsaved form
+          // edits or a save in flight — the refresh happens on a later poll.
+          if (!formDirtyRef.current && !formBusyRef.current) {
+            lastChangeRefreshRef.current = latestApplied.id;
+            void refreshEditorSnapshot();
+          }
         }
         const current = changes.find((change) => change.id === agent.proposal?.id);
         if (current && current.status !== "proposed") {
@@ -2094,6 +2210,7 @@ export default function CollaborateChat({
   }) {
     if ((operations.length === 0 && patches.length === 0) || busy || formBusy) return;
     setFormBusy(true);
+    formBusyRef.current = true;
     setFormResult(null);
     try {
       const res = await fetch(`/api/qbr/${qbrId}/collaborate`, {
@@ -2125,6 +2242,7 @@ export default function CollaborateChat({
       setFormResult(`Error: ${(e as Error).message}`);
     } finally {
       setFormBusy(false);
+      formBusyRef.current = false;
     }
   }
 
@@ -2373,6 +2491,7 @@ export default function CollaborateChat({
                     onComplete={confirmCurrentSection}
                     onReopen={reopenCurrentSection}
                     onSuggestionClick={setInput}
+                    onDirtyStateChange={handleFormDirtyChange}
                   />
                 </div>
               ) : (
@@ -2407,6 +2526,7 @@ export default function CollaborateChat({
                     onComplete={confirmCurrentSection}
                     onReopen={reopenCurrentSection}
                     onSuggestionClick={setInput}
+                    onDirtyStateChange={handleFormDirtyChange}
                   />
                 </AgentTaskCard>
               )

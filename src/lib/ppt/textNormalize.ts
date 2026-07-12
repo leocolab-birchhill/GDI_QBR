@@ -115,28 +115,32 @@ export function normalizeSlideContent(content: SlideContent): SlideContent {
     // mirror the section headers) — only trim/collapse, never re-case.
     agenda: content.agenda.map((a) => cleanText(a)),
     followUps: content.followUps.map((f) => ({
+      id: f.id,
       number: f.number,
       action: toSentence(f.action),
       status: toLabel(f.status),
       owner: toValue(f.owner),
       dueDate: toValue(f.dueDate),
+      dueDateIso: f.dueDateIso,
     })),
     priorityItems: content.priorityItems.map((p) => ({
+      id: p.id,
       number: p.number,
       title: toHeadline(p.title),
       explanation: toSentence(p.explanation),
     })),
     dashboard: {
-      healthAndSafety: content.dashboard.healthAndSafety.map((r) => ({ label: toLabel(r.label), value: toValue(r.value) })),
-      operational: content.dashboard.operational.map((r) => ({ label: toLabel(r.label), value: toValue(r.value) })),
-      financial: content.dashboard.financial.map((r) => ({ label: toLabel(r.label), value: toValue(r.value) })),
+      healthAndSafety: content.dashboard.healthAndSafety.map((r) => ({ id: r.id, label: toLabel(r.label), value: toValue(r.value) })),
+      operational: content.dashboard.operational.map((r) => ({ id: r.id, label: toLabel(r.label), value: toValue(r.value) })),
+      financial: content.dashboard.financial.map((r) => ({ id: r.id, label: toLabel(r.label), value: toValue(r.value) })),
       customGroups: content.dashboard.customGroups?.map((g) => ({
         title: toLabel(g.title),
-        rows: g.rows.map((r) => ({ label: toLabel(r.label), value: toValue(r.value) })),
+        rows: g.rows.map((r) => ({ id: r.id, label: toLabel(r.label), value: toValue(r.value) })),
       })),
       hiddenGroups: content.dashboard.hiddenGroups,
     },
     whatsNext: content.whatsNext.map((u) => ({
+      id: u.id,
       number: u.number,
       title: toHeadline(u.title),
       detail: toSentence(u.detail),

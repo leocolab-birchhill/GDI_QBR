@@ -374,6 +374,7 @@ export async function translateSlideContentToLocale(
 Rules:
 - Translate ALL human-readable strings (follow-up actions, statuses, priority titles/explanations, dashboard labels, what's-next items).
 - Preserve JSON shape exactly; do not add or remove items.
+- Copy every "id" and "dueDateIso" field through UNCHANGED — they are database keys, never translate or drop them.
 - Keep proper nouns, numbers, percentages, dates, and owner names unchanged.
 - Status values: use Ouvert / En cours / Complété / À confirmer for French; Open / In Progress / Complete / To confirm for English.
 - Metric labels should be natural ${target} business language.
