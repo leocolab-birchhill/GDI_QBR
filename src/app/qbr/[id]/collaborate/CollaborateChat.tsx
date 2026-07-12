@@ -744,6 +744,7 @@ function SlideFormContent({
   locale,
   content,
   clientName,
+  initialMeetingDate,
   resetToken,
   onDirtyChange,
   registerCollector,
@@ -752,13 +753,13 @@ function SlideFormContent({
   locale: Locale;
   content: SlideContent | null;
   clientName: string;
+  initialMeetingDate: string;
   resetToken: number;
   onDirtyChange: (dirty: boolean) => void;
   registerCollector: (fn: () => SlideEditOp[]) => void;
 }) {
   const [titleClient, setTitleClient] = useState(clientName);
-  const [meetingDate, setMeetingDate] = useState("");
-  const [nextMeetingDate, setNextMeetingDate] = useState("");
+  const [meetingDate, setMeetingDate] = useState(initialMeetingDate);
   const [agendaText, setAgendaText] = useState(content?.agenda.join("\n") ?? "");
   const [followUpRows, setFollowUpRows] = useState<FollowUpRow[]>(() => followUpsFromContent(content));
   const [savedFollowUpRows, setSavedFollowUpRows] = useState<FollowUpRow[]>(() => followUpsFromContent(content));
@@ -776,8 +777,7 @@ function SlideFormContent({
 
   useEffect(() => {
     setTitleClient(clientName);
-    setMeetingDate("");
-    setNextMeetingDate("");
+    setMeetingDate(initialMeetingDate);
     setAgendaText(content?.agenda.join("\n") ?? "");
     const rows = followUpsFromContent(content);
     setFollowUpRows(rows);
@@ -793,7 +793,7 @@ function SlideFormContent({
     setSavedMetricRows(mRows);
     setMetricCategories(categoriesFromContent(content));
     setClosingNote("");
-  }, [section, resetToken, clientName, content]);
+  }, [section, resetToken, clientName, content, initialMeetingDate]);
 
   const collectOps = useCallback((): SlideEditOp[] => {
     if (section === "title") {
@@ -801,8 +801,7 @@ function SlideFormContent({
       if (titleClient.trim() && titleClient.trim() !== clientName) {
         ops.push({ type: "set_client_name", value: titleClient.trim() });
       }
-      if (meetingDate) ops.push({ type: "set_meeting_date", date: meetingDate });
-      if (nextMeetingDate) ops.push({ type: "set_next_meeting_date", date: nextMeetingDate });
+      if (meetingDate && meetingDate !== initialMeetingDate) ops.push({ type: "set_meeting_date", date: meetingDate });
       return ops;
     }
     if (section === "agenda") {
@@ -830,7 +829,7 @@ function SlideFormContent({
     titleClient,
     clientName,
     meetingDate,
-    nextMeetingDate,
+    initialMeetingDate,
     agendaText,
     followUpRows,
     savedFollowUpRows,
@@ -854,7 +853,7 @@ function SlideFormContent({
     }
     if (section === "title") {
       onDirtyChange(
-        (titleClient.trim() !== clientName && !!titleClient.trim()) || !!meetingDate || !!nextMeetingDate,
+        (titleClient.trim() !== clientName && !!titleClient.trim()) || meetingDate !== initialMeetingDate,
       );
       return;
     }
@@ -886,7 +885,7 @@ function SlideFormContent({
     titleClient,
     clientName,
     meetingDate,
-    nextMeetingDate,
+    initialMeetingDate,
     agendaText,
     content?.agenda,
     priorityRows,
@@ -901,7 +900,7 @@ function SlideFormContent({
 
   if (section === "title") {
     return (
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <label className={labelClass}>
           Client name
           <input className={inputClass} value={titleClient} onChange={(e) => setTitleClient(e.target.value)} />
@@ -909,10 +908,6 @@ function SlideFormContent({
         <label className={labelClass}>
           Meeting date
           <input className={inputClass} type="date" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} />
-        </label>
-        <label className={labelClass}>
-          Next QBR date
-          <input className={inputClass} type="date" value={nextMeetingDate} onChange={(e) => setNextMeetingDate(e.target.value)} />
         </label>
       </div>
     );
@@ -1026,6 +1021,7 @@ function SlideEditorPanel({
   sectionBusy,
   content,
   clientName,
+  initialMeetingDate,
   formResult,
   activeRailKey,
   formCardCollapsed,
@@ -1042,6 +1038,7 @@ function SlideEditorPanel({
   sectionBusy: boolean;
   content: SlideContent | null;
   clientName: string;
+  initialMeetingDate: string;
   formResult: string | null;
   activeRailKey: RailKey;
   formCardCollapsed: boolean;
@@ -1174,6 +1171,7 @@ function SlideEditorPanel({
                 locale={locale}
                 content={content}
                 clientName={clientName}
+                initialMeetingDate={initialMeetingDate}
                 resetToken={resetToken}
                 onDirtyChange={setHasUnsaved}
                 registerCollector={registerCollector}
@@ -1596,6 +1594,7 @@ function SlideRail({
 export default function CollaborateChat({
   qbrId,
   initialClientName,
+  initialMeetingDate,
   quarterYear,
   status,
   aiEnabled,
@@ -1609,6 +1608,7 @@ export default function CollaborateChat({
 }: {
   qbrId: string;
   initialClientName: string;
+  initialMeetingDate: string;
   quarterYear: string;
   status: string;
   aiEnabled: boolean;
@@ -2361,6 +2361,7 @@ export default function CollaborateChat({
                     sectionBusy={sectionBusy}
                     content={content}
                     clientName={clientName}
+                    initialMeetingDate={initialMeetingDate}
                     formResult={formResult}
                     activeRailKey={activeRailKey}
                     formCardCollapsed={formCardCollapsed}
@@ -2394,6 +2395,7 @@ export default function CollaborateChat({
                     sectionBusy={sectionBusy}
                     content={content}
                     clientName={clientName}
+                    initialMeetingDate={initialMeetingDate}
                     formResult={formResult}
                     activeRailKey={activeRailKey}
                     formCardCollapsed={formCardCollapsed}
