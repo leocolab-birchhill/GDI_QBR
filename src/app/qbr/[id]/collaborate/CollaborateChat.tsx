@@ -1458,7 +1458,7 @@ function SlideRail({
   };
 
   return (
-    <div className="mt-3 rounded-lg border bg-muted/20">
+    <div className="mt-2 rounded-lg border bg-muted/20">
       <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5">
         <button
           type="button"
@@ -1659,7 +1659,7 @@ export default function CollaborateChat({
   const [slideRailOpen, setSlideRailOpen] = useState(false);
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [previewExpanded, setPreviewExpanded] = useState(false);
-  const [previewWidth, setPreviewWidth] = useState(44);
+  const [previewWidth, setPreviewWidth] = useState(35);
 
   const endRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
@@ -2157,7 +2157,7 @@ export default function CollaborateChat({
   }
 
   return (
-    <div className="flex h-[calc(100vh-5.5rem)] gap-3">
+    <div className="flex h-[calc(100vh-5rem)] gap-3">
       <aside
         className={`hidden min-w-0 flex-col rounded-lg border bg-background/95 p-2 transition-[width] lg:flex ${
           previewCollapsed ? "overflow-hidden" : ""
@@ -2167,10 +2167,21 @@ export default function CollaborateChat({
         <div className="mb-2 flex items-center justify-between gap-2">
           {!previewCollapsed && (
             <>
-              <h2 className="text-sm font-semibold">{s.editor.livePreview}</h2>
-              <span className="text-xs text-muted-foreground">
+              <h2 className="truncate text-sm font-semibold">{s.editor.livePreview}</h2>
+              <span className="whitespace-nowrap text-xs text-muted-foreground">
                 {slides.length > 0 ? s.editor.slides(slides.length) : "—"}
               </span>
+              {latestDeck && (
+                <button
+                  type="button"
+                  onClick={downloadCurrentDeck}
+                  disabled={downloadBusy}
+                  className="inline-flex items-center gap-1 whitespace-nowrap rounded-md border bg-background px-2 py-0.5 text-[11px] font-medium text-foreground hover:bg-accent disabled:opacity-50"
+                  title={`${s.editor.downloadLatestDeck} — ${s.editor.latestDeckVersion(latestDeck.versionNumber)}`}
+                >
+                  {downloadBusy ? s.editor.revising : `⬇ v${latestDeck.versionNumber}`}
+                </button>
+              )}
             </>
           )}
           <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -2222,29 +2233,7 @@ export default function CollaborateChat({
 
       <div className="flex min-w-0 flex-1 resize-x flex-col overflow-auto rounded-lg border bg-background p-2">
         <div className="shrink-0 border-b pb-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="inline-flex min-w-0 items-center gap-2 rounded-lg border bg-muted/30 p-1 text-xs font-medium">
-              <span className="whitespace-nowrap px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {s.editor.deckEditor}
-              </span>
-              <button
-                type="button"
-                onClick={() => setActiveTab("editor")}
-                className={`rounded-md px-3 py-1.5 ${activeTab === "editor" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                {uiLocale === "fr" ? "Éditeur" : "Slide editor"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab("activity");
-                  setSlideOrderOpen(false);
-                }}
-                className={`rounded-md px-3 py-1.5 ${activeTab === "activity" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                {uiLocale === "fr" ? "Activité" : "Activity"}
-              </button>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 text-sm font-semibold">
                 {editingName ? (
@@ -2283,27 +2272,13 @@ export default function CollaborateChat({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
-              {latestDeck && (
-                <>
-                  <span className="text-[11px] text-muted-foreground">
-                    {s.editor.latestDeckVersion(latestDeck.versionNumber)}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={downloadCurrentDeck}
-                    disabled={downloadBusy}
-                    className="inline-flex items-center whitespace-nowrap rounded-md border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent"
-                  >
-                    {downloadBusy ? s.editor.revising : s.editor.downloadLatestDeck}
-                  </button>
-                </>
-              )}
               <Link
                 href={`/qbr/${qbrId}`}
-                className="inline-flex items-center whitespace-nowrap rounded-md border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+                className="inline-flex items-center whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
               >
                 {s.editor.workspace}
               </Link>
+              <EditorCapabilities locale={uiLocale} />
             </div>
           </div>
           {activeTab === "editor" && editorProgress.guidedMode && (
@@ -2330,20 +2305,46 @@ export default function CollaborateChat({
               onSave={(patches) => submitEdits({ patches })}
             />
           )}
-          <div className="mt-2 flex items-center justify-end gap-3">
-            <EditorCapabilities locale={uiLocale} />
+          <div className="mt-2 inline-flex items-center gap-1 rounded-lg border bg-muted/30 p-0.5 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => setActiveTab("editor")}
+              className={`rounded-md px-2.5 py-1 ${activeTab === "editor" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {uiLocale === "fr" ? "Éditeur" : "Slide editor"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("activity");
+                setSlideOrderOpen(false);
+              }}
+              className={`rounded-md px-2.5 py-1 ${activeTab === "activity" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {uiLocale === "fr" ? "Activité" : "Activity"}
+            </button>
           </div>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto px-0.5">
-            <div className="mb-3 mt-2 lg:hidden">
+            <div className="mb-3 mt-2 flex items-center gap-2 lg:hidden">
               <DeckLanguageToggle
                 deckLocale={deckLocale}
                 uiLocale={uiLocale}
                 busy={deckBusy}
                 onChange={changeDeckLanguage}
               />
+              {latestDeck && (
+                <button
+                  type="button"
+                  onClick={downloadCurrentDeck}
+                  disabled={downloadBusy}
+                  className="mb-2 inline-flex items-center whitespace-nowrap rounded-md border bg-background px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-50"
+                >
+                  {downloadBusy ? s.editor.revising : `${s.editor.downloadLatestDeck} (v${latestDeck.versionNumber})`}
+                </button>
+              )}
             </div>
 
             {!aiEnabled && (
@@ -2355,7 +2356,7 @@ export default function CollaborateChat({
 
             {activeTab === "editor" && editorProgress.guidedMode && (
               isCustomRailKey(activeRailKey) ? (
-                <div className="mt-3">
+                <div className="mt-2">
                   <SlideEditorPanel
                     progress={editorProgress}
                     locale={uiLocale}

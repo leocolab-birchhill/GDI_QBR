@@ -168,7 +168,7 @@ export default function AgentTaskCard({
   const copy = getStrings(locale).editor.agentFlow;
   const task = review.nextTask;
   return (
-    <section className="mt-3 rounded-xl border-2 border-primary/20 bg-primary/[0.035] p-4 shadow-sm" aria-labelledby="agent-task-title">
+    <section className="mt-2 rounded-xl border-2 border-primary/20 bg-primary/[0.035] p-3 shadow-sm" aria-labelledby="agent-task-title">
       <div className="flex items-start gap-3">
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">A</div>
         <div className="min-w-0 flex-1">
@@ -193,7 +193,7 @@ export default function AgentTaskCard({
         </div>
       )}
 
-      <div className="mt-4 space-y-3">
+      <div className="mt-3 space-y-3">
         {children}
         {!task?.complete && (
           <>
