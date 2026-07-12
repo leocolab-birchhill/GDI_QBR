@@ -94,6 +94,8 @@ function fieldChangesForOps(
       before = full.account.clientName;
     } else if (op.type === "set_meeting_date") {
       before = full.meetingDate?.toISOString() ?? null;
+    } else if (op.type === "set_agenda") {
+      before = full.agendaSectionsJson ? JSON.parse(full.agendaSectionsJson) : null;
     }
     const after = op.value ?? op.date ?? op.explanation ?? op.detail ?? op.body ?? op.status ?? op.title ?? op.action ?? null;
     return { field, before, after };

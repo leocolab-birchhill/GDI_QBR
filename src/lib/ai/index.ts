@@ -305,7 +305,7 @@ export async function editSlides(input: {
   activeSection?: string | null;
 }): Promise<SlideEditResult> {
   const ops =
-    "set_metric{group,label,value}, remove_metric{label}, add_priority{title,explanation}, reword_priority{title,explanation}, remove_priority{title}, add_upcoming{title,detail}, remove_upcoming{title}, add_commitment{action,owner,status}, set_commitment_status{action,status,owner}, remove_commitment{action}, set_meeting_date{date}, set_next_meeting_date{date}";
+    "set_metric{group,label,value}, remove_metric{label}, add_priority{title,explanation}, reword_priority{title,explanation}, remove_priority{title}, add_upcoming{title,detail}, remove_upcoming{title}, add_commitment{action,owner,status}, set_commitment_status{action,status,owner}, remove_commitment{action}, set_meeting_date{date}, set_next_meeting_date{date}, set_agenda{detail}";
   const patchTargets =
     "deckLayout.customSlides, deckLayout.hiddenSections, deckLayout.sectionOrder, deckLayout.hiddenDashboardGroups, deckLayout.extraDashboardGroups, deckOptions";
   const activeCtx = input.activeSection
@@ -342,11 +342,12 @@ PATCH FORMAT (each item in "patches" array):
 The context JSON includes **slides.customSlides** (current custom slides with id, title, kind, body), **deckLayout**, and **deckOptions** — patch these directly for format/structure edits.
 
 CRITICAL — NEVER REFUSE. Map every request to operations and/or patches.
-- Content changes (metric values, priority text) → operations
+- Content changes (metric values, priority text, agenda item text) → operations
 - Slide format, layout, visibility, custom slides → patches
 - Page numbers / footer / title tag → deckOptions patch OR set_page_numbers/set_footer/set_title_tag operations (patches preferred)
 
 Rules:
+- AGENDA DISAMBIGUATION: if the user asks to delete/remove an item/text/entry FROM the agenda slide, update the agenda list with set_agenda and keep the remaining items. If the user asks to delete/remove/hide the agenda slide/section itself, use deckLayout.hiddenSections or remove_slide as appropriate.
 - Match existing items by label/title/action/id (case-insensitive).
 - VERBATIM TEXT: copy user-supplied text EXACTLY into operation/patch fields.
 - Do NOT invent metric VALUES the user didn't provide.

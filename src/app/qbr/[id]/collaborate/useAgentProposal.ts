@@ -9,6 +9,8 @@ export interface ProposalView {
   confidence: number;
   explanation?: string | null;
   fieldChanges: Array<{ field: string; before?: unknown; after?: unknown }>;
+  operations?: Array<{ type: string; [key: string]: unknown }>;
+  patches?: Array<{ target: string; action?: string; [key: string]: unknown }>;
   review?: { isClientSafe: boolean; issues: string[]; suggestedRewrite?: string | null } | null;
 }
 

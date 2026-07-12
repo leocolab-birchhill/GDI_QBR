@@ -57,15 +57,37 @@ export function ChangeProposal({
 }) {
   const copy = getStrings(locale).editor.agentFlow;
   const unsafe = proposal.review && !proposal.review.isClientSafe;
+  const statusLabel = proposal.status === "proposed"
+    ? (locale === "fr" ? "En attente d’approbation" : "Pending approval")
+    : proposal.status === "applied"
+      ? (locale === "fr" ? "Acceptée" : "Accepted")
+      : proposal.status === "rejected"
+        ? (locale === "fr" ? "Rejetée" : "Rejected")
+        : proposal.status;
+  const operationSummary = [
+    ...(proposal.operations ?? []).map((op) => op.type),
+    ...(proposal.patches ?? []).map((patch) => `${patch.target}${patch.action ? `:${patch.action}` : ""}`),
+  ];
   return (
     <div className="rounded-lg border-2 border-primary/25 bg-background p-3" aria-live="polite">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-semibold">{copy.proposedChange}</p>
-        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
-          {Math.round(proposal.confidence * 100)}% {locale === "fr" ? "confiance" : "confidence"}
-        </span>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+            {statusLabel}
+          </span>
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+            {Math.round(proposal.confidence * 100)}% {locale === "fr" ? "confiance" : "confidence"}
+          </span>
+        </div>
       </div>
       {proposal.explanation && <p className="mt-1 text-[11px] text-muted-foreground">{proposal.explanation}</p>}
+      {operationSummary.length > 0 && (
+        <div className="mt-2 rounded-md border bg-muted/20 px-2 py-1.5 text-[11px]">
+          <p className="font-medium">{locale === "fr" ? "Actions proposées" : "Proposed actions"}</p>
+          <p className="mt-0.5 text-muted-foreground">{operationSummary.join(", ")}</p>
+        </div>
+      )}
       <dl className="mt-2 space-y-1.5">
         {proposal.fieldChanges.map((change, index) => (
           <div key={`${change.field}-${index}`} className="grid grid-cols-[minmax(90px,0.7fr)_1fr] gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-[11px]">
