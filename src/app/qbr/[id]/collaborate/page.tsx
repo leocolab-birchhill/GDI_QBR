@@ -81,6 +81,7 @@ export default async function CollaboratePage({ params }: { params: { id: string
     <CollaborateChat
       qbrId={qbr.id}
       initialClientName={qbr.account.clientName}
+      initialMeetingDate={qbr.meetingDate ? qbr.meetingDate.toISOString().slice(0, 10) : ""}
       quarterYear={`${qbr.quarter} ${qbr.year}`}
       status={qbr.status}
       aiEnabled={hasOpenAi()}
