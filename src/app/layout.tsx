@@ -15,8 +15,8 @@ const lato = Lato({
 });
 
 export const metadata: Metadata = {
-  title: "GDI BR OS",
-  description: "Système de revue d’affaires — GDI BR OS",
+  title: "GDI BR Creation Agent",
+  description: "Système de revue d’affaires — GDI BR Creation Agent",
 };
 
 export default function RootLayout({
@@ -41,7 +41,7 @@ export default function RootLayout({
       >
         <div className="min-h-screen">
           <header className="border-b border-gdi-blue/15 bg-white">
-            <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
+            <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2">
               <Link
                 href="/dashboard"
                 className="flex shrink-0 items-center gap-3"
@@ -51,11 +51,11 @@ export default function RootLayout({
                   alt="GDI"
                   width={132}
                   height={40}
-                  className="h-9 w-auto"
+                  className="h-8 w-auto"
                   priority
                 />
                 <span className="hidden text-sm font-semibold text-gdi-blue sm:inline">
-                  BR OS
+                  BR Creation Agent
                 </span>
               </Link>
               <nav className="flex flex-1 flex-wrap gap-1 text-sm">
@@ -74,7 +74,7 @@ export default function RootLayout({
               </div>
             </div>
           </header>
-          <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+          <main className="mx-auto max-w-7xl px-4 py-3">{children}</main>
         </div>
       </body>
     </html>

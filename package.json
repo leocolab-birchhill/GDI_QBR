@@ -2,7 +2,7 @@
   "name": "gdi-qbr-os",
   "version": "0.1.0",
   "private": true,
-  "description": "GDI QBR OS - Email-first Quarterly Business Review operating system",
+  "description": "GDI BR Creation Agent - Email-first Quarterly Business Review creation agent",
   "scripts": {
     "dev": "cross-env NODE_OPTIONS=--use-system-ca next dev",
     "dev:reset": "node scripts/dev-reset.mjs",

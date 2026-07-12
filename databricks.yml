@@ -1,4 +1,4 @@
-# Databricks Asset Bundle — GDI QBR OS
+# Databricks Asset Bundle — GDI BR Creation Agent
 # Used for CLI deploys and GitHub Actions CI/CD.
 #
 # Setup:
@@ -47,7 +47,7 @@ resources:
   apps:
     gdi-qbr-os:
       name: ${var.app_name}
-      description: GDI QBR OS — email-first Quarterly Business Review operating system
+      description: GDI BR Creation Agent — email-first Quarterly Business Review creation agent
       source_code_path: .
       resources:
         # Lakebase Postgres — persistent app database

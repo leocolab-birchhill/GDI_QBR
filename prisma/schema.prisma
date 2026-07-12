@@ -1,4 +1,4 @@
-// GDI QBR OS — Prisma schema
+// GDI BR Creation Agent — Prisma schema
 // Production (Databricks Apps): Lakebase via PGHOST + LAKEBASE_ENDPOINT (see databaseUrl.ts).
 // Local dev: docker compose && DATABASE_URL=postgresql://qbr:qbr@localhost:5432/qbr
 // Enum-like fields are strings — allowed values in src/lib/constants.ts.
@@ -356,7 +356,7 @@ model EmailAccount {
 model AppSettings {
   id                       String   @id @default("default")
   sharedMailbox            String   @default("qbr@gdi.com")
-  senderDisplayName        String   @default("GDI QBR OS")
+  senderDisplayName        String   @default("GDI BR Creation Agent")
   reminderCadenceJson      String   @default("{}")
   clientSurveyTemplateJson String   @default("[]")
   internalSurveyTemplateJson String @default("[]")

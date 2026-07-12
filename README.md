@@ -1,4 +1,4 @@
-# GDI QBR OS
+# GDI BR Creation Agent
 
 An **email-first operating system for Quarterly Business Reviews (QBRs)**. Non-technical GDI Operations users drive the entire QBR lifecycle from their inbox: they email a shared mailbox, receive reminders, reply with rough notes, approve/revise drafted content, and receive a generated PowerPoint.
 

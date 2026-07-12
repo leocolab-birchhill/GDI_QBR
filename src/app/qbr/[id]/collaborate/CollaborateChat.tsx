@@ -2157,7 +2157,7 @@ export default function CollaborateChat({
   }
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-3">
+    <div className="flex h-[calc(100vh-5.5rem)] gap-3">
       <aside
         className={`hidden min-w-0 flex-col rounded-lg border bg-background/95 p-2 transition-[width] lg:flex ${
           previewCollapsed ? "overflow-hidden" : ""
@@ -2221,15 +2221,36 @@ export default function CollaborateChat({
       />
 
       <div className="flex min-w-0 flex-1 resize-x flex-col overflow-auto rounded-lg border bg-background p-2">
-        <div className="shrink-0 border-b pb-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="flex flex-wrap items-center gap-x-2 text-xl font-bold">
-                <span className="text-muted-foreground">{s.editor.deckEditor} —</span>
+        <div className="shrink-0 border-b pb-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="inline-flex min-w-0 items-center gap-2 rounded-lg border bg-muted/30 p-1 text-xs font-medium">
+              <span className="whitespace-nowrap px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {s.editor.deckEditor}
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveTab("editor")}
+                className={`rounded-md px-3 py-1.5 ${activeTab === "editor" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {uiLocale === "fr" ? "Éditeur" : "Slide editor"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("activity");
+                  setSlideOrderOpen(false);
+                }}
+                className={`rounded-md px-3 py-1.5 ${activeTab === "activity" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {uiLocale === "fr" ? "Activité" : "Activity"}
+              </button>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 text-sm font-semibold">
                 {editingName ? (
                   <input
                     autoFocus
-                    className="rounded-md border px-2 py-0.5 text-xl font-bold"
+                    className="rounded-md border px-2 py-0.5 text-sm font-semibold"
                     value={nameDraft}
                     onChange={(e) => setNameDraft(e.target.value)}
                     onBlur={saveClientName}
@@ -2258,10 +2279,10 @@ export default function CollaborateChat({
                   </button>
                 )}
                 <span className="text-muted-foreground">{quarterYear}</span>
-              </h1>
-              <p className="text-xs text-muted-foreground">{status.replace(/_/g, " ")}</p>
+                <span className="text-[11px] font-normal text-muted-foreground">{status.replace(/_/g, " ")}</span>
+              </div>
             </div>
-            <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5">
               {latestDeck && (
                 <>
                   <span className="text-[11px] text-muted-foreground">
@@ -2309,26 +2330,7 @@ export default function CollaborateChat({
               onSave={(patches) => submitEdits({ patches })}
             />
           )}
-          <div className="mt-3 flex items-center justify-between gap-3">
-            <div className="inline-flex rounded-lg border bg-muted/30 p-1 text-xs font-medium">
-              <button
-                type="button"
-                onClick={() => setActiveTab("editor")}
-                className={`rounded-md px-3 py-1.5 ${activeTab === "editor" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                {uiLocale === "fr" ? "Éditeur" : "Slide editor"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTab("activity");
-                  setSlideOrderOpen(false);
-                }}
-                className={`rounded-md px-3 py-1.5 ${activeTab === "activity" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-              >
-                {uiLocale === "fr" ? "Activité" : "Activity"}
-              </button>
-            </div>
+          <div className="mt-2 flex items-center justify-end gap-3">
             <EditorCapabilities locale={uiLocale} />
           </div>
         </div>

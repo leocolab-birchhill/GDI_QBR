@@ -280,7 +280,7 @@ CREATE TABLE "EmailAccount" (
 CREATE TABLE "AppSettings" (
     "id" TEXT NOT NULL DEFAULT 'default',
     "sharedMailbox" TEXT NOT NULL DEFAULT 'qbr@gdi.com',
-    "senderDisplayName" TEXT NOT NULL DEFAULT 'GDI QBR OS',
+    "senderDisplayName" TEXT NOT NULL DEFAULT 'GDI BR Creation Agent',
     "reminderCadenceJson" TEXT NOT NULL DEFAULT '{}',
     "clientSurveyTemplateJson" TEXT NOT NULL DEFAULT '[]',
     "internalSurveyTemplateJson" TEXT NOT NULL DEFAULT '[]',
