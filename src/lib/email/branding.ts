@@ -38,8 +38,8 @@ export function wrapEmailHtml(
   const lang = locale === "en" ? "en" : "fr";
   const footer =
     lang === "fr"
-      ? "Envoyé par GDI BR OS — répondez à ce courriel pour mettre à jour votre BR."
-      : "Sent by GDI BR OS — reply to this email to update your BR.";
+      ? "Envoyé par GDI BR Creation Agent — répondez à ce courriel pour mettre à jour votre BR."
+      : "Sent by GDI BR Creation Agent — reply to this email to update your BR.";
   return `<!doctype html>
 <html lang="${lang}">
 <head>

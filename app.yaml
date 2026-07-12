@@ -1,4 +1,4 @@
-# GDI QBR OS — Databricks Apps runtime configuration
+# GDI BR Creation Agent — Databricks Apps runtime configuration
 # Docs: https://docs.databricks.com/dev-tools/databricks-apps/
 #
 # Resource keys must match the Databricks App resources attached in the UI.
@@ -39,7 +39,7 @@ env:
   - name: QBR_MAILBOX
     value: QBR_Robot@outlook.com
   - name: EMAIL_SENDER_NAME
-    value: GDI QBR OS
+    value: GDI BR Creation Agent
   - name: OUTLOOK_POLL_INTERVAL_SECONDS
     value: "30"
 

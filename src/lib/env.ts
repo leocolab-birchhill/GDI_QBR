@@ -38,7 +38,7 @@ const EnvSchema = z.object({
     .enum(["mock", "graph", "sendgrid", "mailgun", "postmark"])
     .default("mock"),
   QBR_MAILBOX: z.string().default("qbr@gdi.com"),
-  EMAIL_SENDER_NAME: z.string().default("GDI BR OS"),
+  EMAIL_SENDER_NAME: z.string().default("GDI BR Creation Agent"),
 
   MICROSOFT_CLIENT_ID: z.string().optional(),
   MICROSOFT_CLIENT_SECRET: z.string().optional(),

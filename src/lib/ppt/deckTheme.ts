@@ -118,7 +118,7 @@ export const DECK_THEME = {
     name: "BR",
     width: PAGE_W,
     height: PAGE_H,
-    author: "GDI BR OS",
+    author: "GDI BR Creation Agent",
     company: "GDI",
   },
 

@@ -12,7 +12,7 @@ const DEFAULT_CADENCE = {
 };
 
 async function main() {
-  console.log("Seeding GDI QBR OS…");
+  console.log("Seeding GDI BR Creation Agent…");
 
   // ── Users ───────────────────────────────────────────────────────────────────
   // lcolabrese is the default owner/recipient for all roles (used in testing).
@@ -158,7 +158,7 @@ async function main() {
       id: "default",
       sharedMailbox: "qbr@gdi.com",
       pptTemplatePath: "templates/qbr_brand_template.pptx",
-      senderDisplayName: "GDI QBR OS",
+      senderDisplayName: "GDI BR Creation Agent",
       reminderCadenceJson: JSON.stringify(DEFAULT_CADENCE),
       clientSurveyTemplateJson: JSON.stringify([
         "Overall rating (0-10)",
