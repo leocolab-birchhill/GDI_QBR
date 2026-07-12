@@ -4,7 +4,7 @@ import { audit } from "../audit";
 import { rewriteClientSafe } from "../ai";
 import { ExtractionResult, SlideEditOp } from "../ai/schemas";
 import { TO_CONFIRM, QbrStatus, METRIC_GROUPS } from "../constants";
-import { resolveQbrLocale } from "../i18n";
+import { defaultAgenda, resolveQbrLocale } from "../i18n";
 import { generateQbrDeck, DeckOptions } from "../ppt/generateQbrDeck";
 import { saveFile, readFile } from "../storage";
 import { buildSlideContent } from "./slideContent";
@@ -148,6 +148,43 @@ async function mutateDeckLayout(
     data: { deckLayoutJson: serializeDeckLayout(layout) },
   });
   return layout;
+}
+
+const SECTION_AGENDA_MATCHERS: Partial<Record<GuidedSection, RegExp>> = {
+  followUps: /follow|commit|engagement|suivi|progress|progrès/i,
+  priorities: /priorit|decision|décision/i,
+  dashboard: /dashboard|tableau|metric|indicateur/i,
+  whatsNext: /next|upcoming|prochaine|suite/i,
+  questions: /question|discussion/i,
+};
+
+async function removeAgendaEntryForHiddenSection(
+  qbrCycleId: string,
+  section: GuidedSection,
+): Promise<string | null> {
+  const matcher = SECTION_AGENDA_MATCHERS[section];
+  if (!matcher) return null;
+  const cycle = await prisma.qbrCycle.findUnique({
+    where: { id: qbrCycleId },
+    include: { account: true },
+  });
+  if (!cycle) return null;
+  let agenda = defaultAgenda(resolveQbrLocale(cycle));
+  if (cycle.agendaSectionsJson) {
+    try {
+      const parsed = JSON.parse(cycle.agendaSectionsJson);
+      if (Array.isArray(parsed) && parsed.length) agenda = parsed.map(String);
+    } catch {
+      /* keep localized defaults */
+    }
+  }
+  const next = agenda.filter((item) => !matcher.test(item));
+  if (next.length === agenda.length) return null;
+  await prisma.qbrCycle.update({
+    where: { id: qbrCycleId },
+    data: { agendaSectionsJson: JSON.stringify(next) },
+  });
+  return `Removed ${agenda.length - next.length} ${section} agenda item(s)`;
 }
 
 function normalizeGroup(group?: string): string {
@@ -712,9 +749,14 @@ export async function applySlideEdits(
             if (!l.hiddenSections.includes(section))
               l.hiddenSections.push(section);
           });
+          const agendaChange = await removeAgendaEntryForHiddenSection(
+            qbrCycleId,
+            section,
+          );
           changes.push(
             `Hid the ${section} slide (its content is kept and can be shown again)`,
           );
+          if (agendaChange) changes.push(agendaChange);
         }
         break;
       }
@@ -765,9 +807,13 @@ export async function applySlideEdits(
           l.hiddenSections = l.hiddenSections.filter((s) => s !== section);
           if (hidden) l.hiddenSections.push(section);
         });
+        const agendaChange = hidden
+          ? await removeAgendaEntryForHiddenSection(qbrCycleId, section)
+          : null;
         changes.push(
           hidden ? `Hid the ${section} slide` : `Restored the ${section} slide`,
         );
+        if (agendaChange) changes.push(agendaChange);
         break;
       }
       case "add_dashboard_group": {

@@ -86,7 +86,12 @@ function fieldChangesForOps(
 ): z.infer<typeof FieldChangeSchema>[] {
   if (!full) return [];
   return operations.map((op) => {
-    const field = op.label ?? op.title ?? op.action ?? op.type;
+    const field =
+      op.type === "remove_slide"
+        ? `Slide + agenda item: ${op.title ?? op.section ?? "section"}`
+        : op.type === "set_section_hidden"
+          ? `Slide + agenda item: ${op.section ?? op.title ?? "section"}`
+          : op.label ?? op.title ?? op.action ?? op.type;
     let before: unknown = null;
     if (op.type === "set_metric" && op.label) {
       before = full.dashboardMetrics.find((m) => m.label.toLowerCase() === op.label?.toLowerCase())?.value ?? null;
@@ -95,7 +100,10 @@ function fieldChangesForOps(
     } else if (op.type === "set_meeting_date") {
       before = full.meetingDate?.toISOString() ?? null;
     }
-    const after = op.value ?? op.date ?? op.explanation ?? op.detail ?? op.body ?? op.status ?? op.title ?? op.action ?? null;
+    const after =
+      op.type === "remove_slide" || (op.type === "set_section_hidden" && op.hidden !== false)
+        ? "Removed from deck navigation"
+        : op.value ?? op.date ?? op.explanation ?? op.detail ?? op.body ?? op.status ?? op.title ?? op.action ?? null;
     return { field, before, after };
   });
 }
@@ -385,6 +393,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         ? {
             id: changeSet.id,
             status: changeSet.status,
+            approvalStatus: "pending_approval",
             section: changeSet.section,
             confidence: changeSet.confidence,
             explanation: changeSet.explanation,

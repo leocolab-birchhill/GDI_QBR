@@ -57,6 +57,22 @@ export function ChangeProposal({
 }) {
   const copy = getStrings(locale).editor.agentFlow;
   const unsafe = proposal.review && !proposal.review.isClientSafe;
+  const approvalLabel =
+    proposal.approvalStatus === "accepted"
+      ? locale === "fr"
+        ? "Accepté"
+        : "Accepted"
+      : proposal.approvalStatus === "rejected"
+        ? locale === "fr"
+          ? "Rejeté"
+          : "Rejected"
+        : proposal.approvalStatus === "stale"
+          ? locale === "fr"
+            ? "Expiré"
+            : "Stale"
+          : locale === "fr"
+            ? "En attente d'approbation"
+            : "Pending approval";
   return (
     <div className="rounded-lg border-2 border-primary/25 bg-background p-3" aria-live="polite">
       <div className="flex items-center justify-between gap-2">
@@ -64,6 +80,19 @@ export function ChangeProposal({
         <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
           {Math.round(proposal.confidence * 100)}% {locale === "fr" ? "confiance" : "confidence"}
         </span>
+      </div>
+      <div className="mt-2 grid gap-1 rounded-md border bg-muted/20 px-2 py-1.5 text-[11px]">
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-medium">{locale === "fr" ? "Statut d'approbation" : "Approval status"}</span>
+          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-900">
+            {approvalLabel}
+          </span>
+        </div>
+        <p className="text-muted-foreground">
+          {locale === "fr"
+            ? "Accepter appliquera exactement les champs ci-dessous; rejeter n'appliquera rien."
+            : "Accept applies exactly the fields below; reject applies nothing."}
+        </p>
       </div>
       {proposal.explanation && <p className="mt-1 text-[11px] text-muted-foreground">{proposal.explanation}</p>}
       <dl className="mt-2 space-y-1.5">

@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 export interface ProposalView {
   id: string;
   status: string;
+  approvalStatus?: "pending_approval" | "accepted" | "rejected" | "stale";
   section?: string | null;
   confidence: number;
   explanation?: string | null;
