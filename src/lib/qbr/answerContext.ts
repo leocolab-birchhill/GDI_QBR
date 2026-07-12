@@ -66,6 +66,7 @@ function toSnapshot(deck: DeckRow): DeckSnapshot {
     title: deck.title ?? null,
     generatedAt: deck.createdAt ? deck.createdAt.toISOString() : null,
     priorities: [],
+    agenda: [],
     metrics: [],
     whatsNext: [],
   };
@@ -73,6 +74,7 @@ function toSnapshot(deck: DeckRow): DeckSnapshot {
   try {
     const c = JSON.parse(deck.contentJson);
     base.priorities = (c.priorityItems ?? []).map((p: any) => p.title).filter(Boolean);
+    base.agenda = (c.agenda ?? []).filter((item: any) => typeof item === "string" && item.trim());
     base.whatsNext = (c.whatsNext ?? []).map((w: any) => w.title).filter(Boolean);
     const d = c.dashboard ?? {};
     base.metrics = [...(d.healthAndSafety ?? []), ...(d.operational ?? []), ...(d.financial ?? [])]

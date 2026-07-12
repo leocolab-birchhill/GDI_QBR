@@ -19,6 +19,7 @@ export interface DeckSnapshot {
   title: string | null;
   generatedAt: string | null;
   priorities: string[];
+  agenda: string[];
   metrics: { label: string; value: string }[];
   whatsNext: string[];
 }

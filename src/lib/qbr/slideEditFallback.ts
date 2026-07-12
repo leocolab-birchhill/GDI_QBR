@@ -41,7 +41,19 @@ interface Parsed {
   describe: string;
 }
 
-function parseOne(raw: string): Parsed | null {
+function currentAgenda(context: AnswerContext): string[] {
+  return (context.latestDeck?.agenda ?? []).filter((item) => item.trim());
+}
+
+function withoutAgendaItem(items: string[], target: string): string[] {
+  const needle = target.toLowerCase().trim();
+  return items.filter((item) => {
+    const hay = item.toLowerCase().trim();
+    return hay !== needle && !hay.includes(needle) && !needle.includes(hay);
+  });
+}
+
+function parseOne(raw: string, context?: AnswerContext): Parsed | null {
   const line = raw.trim();
   if (!line) return null;
   const lower = line.toLowerCase();
@@ -57,6 +69,24 @@ function parseOne(raw: string): Parsed | null {
       op: { type: "add_slide", title, kind, body: "", afterSection: "whatsNext" },
       describe: `Add a new slide "${title}"`,
     };
+  }
+
+  // ── Remove text from the agenda slide (not the agenda/section slides) ───────
+  const removeAgendaItem = line.match(
+    /^(?:please\s+)?(?:remove|delete|drop)\s+(?:the\s+)?(.+?)\s+(?:from|on)\s+(?:the\s+)?agenda(?:\s+slide)?\s*$/i,
+  ) ?? line.match(
+    /^(?:please\s+)?(?:remove|delete|drop)\s+(?:the\s+)?agenda(?:\s+slide)?\s+(?:item|text|entry)\s*[\"']?(.+?)[\"']?\s*$/i,
+  );
+  if (removeAgendaItem && context) {
+    const target = removeAgendaItem[1].trim().replace(/^agenda\s+(?:item|text|entry)\s+/i, "").replace(/^["']|["']$/g, "");
+    const agenda = currentAgenda(context);
+    const nextAgenda = agenda.length ? withoutAgendaItem(agenda, target) : [];
+    if (agenda.length && nextAgenda.length !== agenda.length) {
+      return {
+        op: { type: "set_agenda", detail: nextAgenda.join("\n") },
+        describe: `Remove agenda item "${target}" from the agenda slide`,
+      };
+    }
   }
 
   // ── Remove dashboard section/group ───────────────────────────────────────────
@@ -240,12 +270,12 @@ export function parseSlideEditFallback(message: string, context: AnswerContext):
 
   const parsed: Parsed[] = [];
   for (const seg of segments) {
-    const p = parseOne(seg);
+    const p = parseOne(seg, context);
     if (p) parsed.push(p);
   }
   // If splitting produced nothing, try the whole message as one instruction.
   if (parsed.length === 0) {
-    const p = parseOne(message);
+    const p = parseOne(message, context);
     if (p) parsed.push(p);
   }
 

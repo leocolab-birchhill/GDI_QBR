@@ -15,6 +15,17 @@ function ctx(overrides: Partial<AnswerContext> = {}): AnswerContext {
     missingInfo: [],
     approvals: [],
     deckVersions: [],
+    latestDeck: {
+      versionNumber: 1,
+      status: "draft",
+      isFinal: false,
+      title: null,
+      generatedAt: null,
+      agenda: ["OPEN FOLLOW-UPS & PROGRESS", "PRIORITY ITEMS", "DASHBOARD"],
+      priorities: [],
+      metrics: [],
+      whatsNext: [],
+    },
     recentEmails: [],
     ...overrides,
   };
@@ -61,6 +72,14 @@ describe("deterministic slide-edit parser", () => {
     expect(parseSlideEditFallback("delete the outstanding invoices metric", ctx()).operations[0]).toMatchObject({
       type: "remove_metric",
     });
+  });
+
+
+  it("removes agenda slide text with set_agenda instead of deleting slides", () => {
+    const r = parseSlideEditFallback("delete PRIORITY ITEMS from the agenda slide", ctx());
+    expect(r.operations[0]).toMatchObject({ type: "set_agenda" });
+    expect(r.operations[0].detail).toContain("OPEN FOLLOW-UPS & PROGRESS");
+    expect(r.operations[0].detail).not.toContain("PRIORITY ITEMS");
   });
 
   it("parses reword priority", () => {

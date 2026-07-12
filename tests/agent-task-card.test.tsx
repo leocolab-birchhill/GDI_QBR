@@ -90,6 +90,7 @@ describe("AgentTaskCard", () => {
           status: "proposed",
           confidence: 0.8,
           fieldChanges: [{ field: "Priority", before: "Old", after: "New" }],
+          operations: [{ type: "reword_priority" }],
           review: { isClientSafe: false, issues: ["Contains internal blame"] },
         }}
         stage="idle"
@@ -98,6 +99,9 @@ describe("AgentTaskCard", () => {
         <div />
       </AgentTaskCard>,
     );
+    expect(screen.getByText("Pending approval")).toBeInTheDocument();
+    expect(screen.getByText("Proposed actions")).toBeInTheDocument();
+    expect(screen.getByText("reword_priority")).toBeInTheDocument();
     expect(screen.getByText("Client-safety review required")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Accept with warning" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
