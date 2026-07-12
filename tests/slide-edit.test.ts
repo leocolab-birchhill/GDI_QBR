@@ -101,6 +101,15 @@ describe("deterministic slide-edit parser", () => {
     expect(r.regenerate).toBe(true);
   });
 
+  it("parses built-in slide deletion as a slide removal so agenda text can be updated too", () => {
+    const r = parseSlideEditFallback("delete the priority items slide", ctx());
+    expect(r.operations[0]).toMatchObject({
+      type: "remove_slide",
+      title: "priority items",
+    });
+    expect(r.regenerate).toBe(true);
+  });
+
   it("parses hide-dashboard-group requests", () => {
     const r = parseSlideEditFallback("hide the Financial dashboard section", ctx());
     expect(r.operations[0]).toMatchObject({ type: "remove_dashboard_group", group: "Financial" });

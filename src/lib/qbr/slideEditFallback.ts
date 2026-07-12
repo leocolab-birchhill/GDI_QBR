@@ -79,6 +79,17 @@ function parseOne(raw: string): Parsed | null {
   if (fmt) return fmt;
 
   // ── Remove ──────────────────────────────────────────────────────────────────
+  const removeBuiltInSlide = line.match(
+    /^(?:please\s+)?(?:remove|delete|drop|hide)\s+(?:the\s+)?(.+?)\s+(?:agenda\s+item\s+and\s+)?slide\s*$/i,
+  );
+  if (removeBuiltInSlide) {
+    const title = removeBuiltInSlide[1].trim().replace(/^["']|["']$/g, "");
+    return {
+      op: { type: "remove_slide", title },
+      describe: `Remove the "${title}" slide and its agenda item`,
+    };
+  }
+
   const remove = line.match(/^(?:please\s+)?(?:remove|delete|drop)\s+(?:the\s+)?(.+?)\s*(metric|priority|follow[\s-]?up|commitment|action|upcoming|what'?s[\s-]?next(?:\s+item)?|item)?\s*$/i);
   if (/^(?:please\s+)?(?:remove|delete|drop)\b/i.test(lower) && remove) {
     const target = remove[1].trim().replace(/^the\s+/i, "").replace(/^["']|["']$/g, "");
