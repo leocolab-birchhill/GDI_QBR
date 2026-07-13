@@ -25,7 +25,7 @@ import {
 import { getSectionGuidance, getSectionReview, sectionChatPlaceholder } from "@/lib/qbr/sectionGuidance";
 import DeckPreview from "./DeckPreview";
 import DeckLanguageToggle from "./DeckLanguageToggle";
-import AgentTaskCard from "./AgentTaskCard";
+import AgentTaskCard, { ChangeProposal } from "./AgentTaskCard";
 import { useAgentProposal } from "./useAgentProposal";
 
 interface DeckRef {
@@ -2495,6 +2495,22 @@ export default function CollaborateChat({
               </div>
             )}
 
+            {activeTab === "editor" && agent.proposal?.status === "proposed" && (!editorProgress.guidedMode || isCustomRailKey(activeRailKey)) && (
+              <div
+                id="pending-agent-proposal"
+                tabIndex={-1}
+                className="mt-2 scroll-mt-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <ChangeProposal
+                  proposal={agent.proposal}
+                  locale={uiLocale}
+                  busy={busy || formBusy || agent.stage !== "idle"}
+                  onAccept={acceptProposal}
+                  onReject={rejectProposal}
+                />
+              </div>
+            )}
+
             {activeTab === "editor" && editorProgress.guidedMode && (
               isCustomRailKey(activeRailKey) ? (
                 <div className="mt-2">
@@ -2572,7 +2588,7 @@ export default function CollaborateChat({
                       onClick={reviewPendingProposal}
                       className="mt-2 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
                     >
-                      {uiLocale === "fr" ? "Approuver les modifications" : "Approve changes"}
+                      {uiLocale === "fr" ? "Voir et approuver dans l’éditeur" : "Review and approve in slide editor"}
                     </button>
                   </div>
                 )}
@@ -2671,6 +2687,23 @@ export default function CollaborateChat({
                 )}
                 <div ref={endRef} />
               </div>
+
+              {agent.proposal?.status === "proposed" && (
+                <div className="border-t border-primary/20 bg-primary/5 px-3 py-2 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium text-foreground">
+                      {uiLocale === "fr" ? "Modification en attente d’approbation" : "Change pending approval"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={reviewPendingProposal}
+                      className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                    >
+                      {uiLocale === "fr" ? "Voir dans l’éditeur" : "Review in slide editor"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <form
                 onSubmit={(e) => {
