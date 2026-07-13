@@ -2534,6 +2534,25 @@ export default function CollaborateChat({
 
             {activeTab === "activity" && (
               <div className="mt-3">
+                {agent.proposal?.status === "proposed" && (
+                  <div className="mb-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs">
+                    <p className="font-semibold text-foreground">
+                      {uiLocale === "fr" ? "Une modification est prête à approuver." : "A proposed change is ready for approval."}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      {uiLocale === "fr"
+                        ? "Passez à l’éditeur pour examiner, appliquer ou rejeter la modification proposée."
+                        : "Go back to the editor to review, apply, or reject the proposed change."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("editor")}
+                      className="mt-2 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                    >
+                      {uiLocale === "fr" ? "Approuver les modifications" : "Approve changes"}
+                    </button>
+                  </div>
+                )}
                 {changeHistory.length > 0 && (
               <div className="border-b bg-background px-3 py-2">
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
