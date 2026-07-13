@@ -130,6 +130,173 @@ inbound email ─► provider.parseInboundPayload()
 
 ---
 
+## Guided “Answer in your own words” jobs
+
+The collaboration workspace has two ways to talk to the slide-editing agent:
+
+1. **Activity chat** — a general chat composer for broad deck edits.
+2. **Guided answers** — the **“Answer in your own words”** field shown on guided task cards.
+
+Guided-answer submissions are not treated as raw chat commands. The UI sends the
+operator’s text plus task metadata to `/api/qbr/[id]/collaborate` with
+`inputSource: "guided_answer"`. The server builds a full editor context from the
+current QBR, latest deck JSON, active section, deck layout/options, and guided
+workflow progress, then asks the slide-editor agent to convert the answer into a
+small, reviewable set of structured edits.
+
+### Browser → app JSON
+
+For a guided answer, the browser posts JSON like this (the exact `guidedTask`
+shape depends on the current task):
+
+```json
+{
+  "message": "Add uptime at 98.7% and note that staffing is stable.",
+  "action": "propose",
+  "activeSection": "dashboard",
+  "inputSource": "guided_answer",
+  "guidedTask": {
+    "id": "dashboard-health",
+    "section": "dashboard",
+    "question": "What changed for this slide?",
+    "rationale": "Collect the missing metric values and context.",
+    "fields": [
+      {
+        "key": "metric",
+        "label": "Metric or update",
+        "inputType": "text",
+        "required": true
+      }
+    ],
+    "priority": 2,
+    "complete": false
+  }
+}
+```
+
+The same endpoint also accepts direct `operations` or `patches`, but guided-answer
+jobs normally use proposal mode first. Nothing is written to the QBR until the
+operator reviews and accepts the proposal.
+
+### App → OpenAI JSON request
+
+All AI calls go through `completeJson()`. The app tries the OpenAI **Responses API**
+first and asks for a JSON object response:
+
+```json
+{
+  "model": "<OPENAI_MODEL from env>",
+  "reasoning": { "effort": "low" },
+  "input": [
+    { "role": "system", "content": "<slide-editor instructions>" },
+    { "role": "user", "content": "User request:\n...\n\nCurrent BR editor context (JSON):\n{...}" }
+  ],
+  "text": { "format": { "type": "json_object" } }
+}
+```
+
+If the Responses API call fails, the app falls back to Chat Completions with the
+same system/user content and `response_format: { "type": "json_object" }`.
+
+The guided-answer system prompt explicitly tells the model that the text came
+from the **“Answer in your own words”** field, not the general chat composer. That
+matters because phrases like “add this” or “fill this in” should usually be
+interpreted as UI intent, while the actual business content should become deck
+operations. The prompt also includes the guided task JSON so the model knows what
+section and fields the user is answering.
+
+### OpenAI → app JSON response
+
+The model must return only this JSON shape:
+
+```json
+{
+  "reply": "Added uptime and staffing context for your review.",
+  "operations": [
+    {
+      "type": "set_metric",
+      "group": "operational",
+      "label": "Uptime",
+      "value": "98.7%"
+    },
+    {
+      "type": "add_priority",
+      "title": "Staffing stability",
+      "explanation": "Staffing is stable."
+    }
+  ],
+  "patches": [],
+  "regenerate": true,
+  "suggestions": [
+    "Confirm whether uptime is monthly or quarterly.",
+    "Add any client-visible risk notes."
+  ]
+}
+```
+
+The app validates that response with Zod before using it. Supported `operations`
+cover row-level BR content such as metrics, priorities, upcoming items,
+commitments, meeting dates, agenda text, and some deck-wide options. Supported
+`patches` cover deck structure/format metadata such as custom slides, hidden
+sections, section order, dashboard group visibility, and deck options.
+
+### Proposal, safety review, and acceptance
+
+After validation, the app creates an editor proposal instead of immediately
+mutating the QBR. The API response sent back to the browser looks like:
+
+```json
+{
+  "ok": true,
+  "reply": "Added uptime and staffing context for your review.",
+  "applied": [],
+  "changed": false,
+  "proposal": {
+    "id": "<change-set-id>",
+    "status": "proposed",
+    "section": "dashboard",
+    "confidence": 0.8,
+    "explanation": "I converted your answer into structured fields. Review them before applying.",
+    "fieldChanges": [
+      { "field": "Uptime", "before": null, "after": "98.7%" },
+      { "field": "Staffing stability", "before": null, "after": "Staffing is stable." }
+    ],
+    "operations": ["<validated operations>"],
+    "patches": [],
+    "review": {
+      "isClientSafe": true,
+      "issues": [],
+      "suggestedRewrite": null
+    }
+  },
+  "suggestions": ["<next edits>"],
+  "aiEnabled": true,
+  "editorProgress": { "<guided workflow state>": "..." }
+}
+```
+
+If the operator accepts, the browser posts:
+
+```json
+{
+  "action": "accept",
+  "changeSetId": "<change-set-id>",
+  "activeSection": "dashboard"
+}
+```
+
+Only then does the server apply the stored operations/patches, regenerate the
+`.pptx` draft with `skipAi: true`, and return the new deck/content snapshot.
+Rejecting a proposal marks it rejected without changing the deck; undo reverts the
+last accepted agent change and regenerates the deck.
+
+### Offline fallback
+
+If `OPENAI_API_KEY` is absent or the model call fails, guided answers still work
+through the deterministic slide-edit fallback. The fallback returns the same
+validated `reply` / `operations` / `patches` / `regenerate` / `suggestions` shape,
+so the rest of the proposal and deck-regeneration flow stays unchanged.
+
 ## Project structure
 
 ```
