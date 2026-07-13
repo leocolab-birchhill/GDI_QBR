@@ -72,6 +72,12 @@ const Schema = z.object({
 
 const CONFIRM_PATTERNS = /^(confirm|confirmer|ok|next|suivant|done|terminé)\.?$/i;
 
+function isoInputDate(date: Date | string | null | undefined): string {
+  if (!date) return "";
+  const d = typeof date === "string" ? new Date(date) : date;
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+}
+
 function latestDeckSnapshot(full: Awaited<ReturnType<typeof getQbrFull>>) {
   const latest = full?.deckVersions[full.deckVersions.length - 1];
   let content: SlideContent | null = null;
@@ -89,6 +95,7 @@ function latestDeckSnapshot(full: Awaited<ReturnType<typeof getQbrFull>>) {
       : null,
     options: readDeckOptions(full?.deckOptionsJson),
     editorProgress: readEditorProgress(full?.editorProgressJson),
+    meetingDate: isoInputDate(full?.meetingDate),
   };
 }
 
@@ -175,6 +182,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         content,
         deck,
         options: readDeckOptions(refreshed?.deckOptionsJson),
+        meetingDate: isoInputDate(refreshed?.meetingDate),
         changedSections,
         editorProgress: progress,
       });
@@ -197,6 +205,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         content,
         deck,
         options: readDeckOptions(refreshed?.deckOptionsJson),
+        meetingDate: isoInputDate(refreshed?.meetingDate),
         changedSections: GUIDED_SECTIONS,
         editorProgress: progress,
       });
@@ -221,6 +230,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       let deck: { fileName: string; fileUrl: string; versionNumber: number } | null = null;
       let content: SlideContent | null = null;
       let options: Record<string, unknown> = {};
+      let responseMeetingDate = isoInputDate(full.meetingDate);
 
       if (changed) {
         const result = await generateDraft(params.id, { skipAi: true });
@@ -234,6 +244,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         }
         const refreshed = await getQbrFull(params.id);
         options = readDeckOptions(refreshed?.deckOptionsJson);
+        responseMeetingDate = isoInputDate(refreshed?.meetingDate);
       } else {
         options = readDeckOptions(full.deckOptionsJson);
       }
@@ -271,6 +282,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         deck,
         content,
         options,
+        meetingDate: responseMeetingDate,
         changedSections,
         suggestions: [],
         changed,
@@ -329,6 +341,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         deck: null,
         content: null,
         options: readDeckOptions(full.deckOptionsJson),
+        meetingDate: isoInputDate(full.meetingDate),
         changedSections: [section],
         suggestions: allDone ? [] : [strings.editor.confirm],
         changed: false,
@@ -400,6 +413,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       deck: null,
       content: null,
       options: readDeckOptions(full.deckOptionsJson),
+      meetingDate: isoInputDate(full.meetingDate),
       changedSections: [],
       suggestions: edit.suggestions,
       changed: false,

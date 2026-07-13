@@ -1747,6 +1747,7 @@ export default function CollaborateChat({
   const [activeTab, setActiveTab] = useState<EditorTab>("editor");
 
   const [clientName, setClientName] = useState(initialClientName);
+  const [meetingDate, setMeetingDate] = useState(initialMeetingDate);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(initialClientName);
   const [sectionBusy, setSectionBusy] = useState(false);
@@ -1895,6 +1896,7 @@ export default function CollaborateChat({
       if (data.options) setDeckOptions(data.options as DeckOptions);
       if (data.deck) setLatestDeck(data.deck as DeckRef);
       if (data.editorProgress) setEditorProgress(data.editorProgress as EditorProgress);
+      if (typeof data.meetingDate === "string") setMeetingDate(data.meetingDate);
       setScrollToken((t) => t + 1);
     } catch {
       /* polling should never interrupt editing */
@@ -2099,6 +2101,7 @@ export default function CollaborateChat({
   }
 
   function applyAgentResult(data: Record<string, unknown>) {
+    if (typeof data.meetingDate === "string") setMeetingDate(data.meetingDate);
     if (data.deck) setLatestDeck(data.deck as DeckRef);
     if (data.content) {
       setContent(data.content as SlideContent);
@@ -2232,6 +2235,12 @@ export default function CollaborateChat({
       if (renamed?.value) {
         setClientName(renamed.value.trim());
         setNameDraft(renamed.value.trim());
+      }
+      if (typeof data.meetingDate === "string") {
+        setMeetingDate(data.meetingDate);
+      } else {
+        const dated = operations.find((op) => op.type === "set_meeting_date" && op.date);
+        if (dated?.date) setMeetingDate(dated.date);
       }
       const changed: SlideSection[] = Array.isArray(data.changedSections) ? data.changedSections : [];
       setHighlightSection(changed.length > 0 ? changed[0] : editorProgress.currentSection);
@@ -2521,7 +2530,7 @@ export default function CollaborateChat({
                     sectionBusy={sectionBusy}
                     content={content}
                     clientName={clientName}
-                    initialMeetingDate={initialMeetingDate}
+                    initialMeetingDate={meetingDate}
                     formResult={formResult}
                     activeRailKey={activeRailKey}
                     formCardCollapsed={formCardCollapsed}
@@ -2556,7 +2565,7 @@ export default function CollaborateChat({
                     sectionBusy={sectionBusy}
                     content={content}
                     clientName={clientName}
-                    initialMeetingDate={initialMeetingDate}
+                    initialMeetingDate={meetingDate}
                     formResult={formResult}
                     activeRailKey={activeRailKey}
                     formCardCollapsed={formCardCollapsed}
