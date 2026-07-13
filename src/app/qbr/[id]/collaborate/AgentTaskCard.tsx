@@ -1,6 +1,6 @@
 "use client";
 
-import React, { type ReactNode } from "react";
+import React, { useEffect, useRef, type ReactNode } from "react";
 import type { SectionReviewSummary } from "@/lib/qbr/sectionGuidance";
 import { getStrings, type Locale } from "@/lib/i18n";
 import type { AgentStage, ProposalView } from "./useAgentProposal";
@@ -260,6 +260,17 @@ export default function AgentTaskCard({
 }) {
   const copy = getStrings(locale).editor.agentFlow;
   const task = review.nextTask;
+  const proposalRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (proposal?.status !== "proposed") return;
+    const frame = window.requestAnimationFrame(() => {
+      proposalRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      proposalRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [proposal?.id, proposal?.status]);
+
   return (
     <section className="mt-2 rounded-xl border-2 border-primary/20 bg-primary/[0.035] p-3 shadow-sm" aria-labelledby="agent-task-title">
       <div className="flex items-start gap-3">
@@ -299,7 +310,11 @@ export default function AgentTaskCard({
             </button>
           </>
         )}
-        {proposal && <ChangeProposal proposal={proposal} locale={locale} busy={busy} onAccept={onAcceptProposal} onReject={onRejectProposal} />}
+        {proposal && (
+          <div ref={proposalRef} tabIndex={-1} className="scroll-mt-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50">
+            <ChangeProposal proposal={proposal} locale={locale} busy={busy} onAccept={onAcceptProposal} onReject={onRejectProposal} />
+          </div>
+        )}
         {task?.complete && review.status !== "complete" && (
           <button type="button" onClick={onConfirmSection} disabled={busy} className="rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">
             {locale === "fr" ? "Confirmer et continuer" : "Confirm & continue"}
