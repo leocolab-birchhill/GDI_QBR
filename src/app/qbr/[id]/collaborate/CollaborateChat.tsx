@@ -2250,6 +2250,29 @@ export default function CollaborateChat({
     await submitEdits({ operations });
   }
 
+
+  function reviewPendingProposal() {
+    setActiveTab("editor");
+    setSlideOrderOpen(false);
+
+    const proposalSection = agent.proposal?.section;
+    if (proposalSection && GUIDED_SECTIONS.includes(proposalSection as GuidedSection)) {
+      const section = proposalSection as GuidedSection;
+      setActiveRailKey(railKeyForSection(section));
+      setEditorProgress((prev) => ({ ...prev, currentSection: section }));
+      setHighlightSection(section as SlideSection);
+      setScrollToken((token) => token + 1);
+    }
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById("pending-agent-proposal")
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+  }
+
   function reopenCurrentSection() {
     selectSection(editorProgress.currentSection, false);
   }
@@ -2546,7 +2569,7 @@ export default function CollaborateChat({
                     </p>
                     <button
                       type="button"
-                      onClick={() => setActiveTab("editor")}
+                      onClick={reviewPendingProposal}
                       className="mt-2 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
                     >
                       {uiLocale === "fr" ? "Approuver les modifications" : "Approve changes"}
