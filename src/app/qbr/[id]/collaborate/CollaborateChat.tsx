@@ -25,7 +25,7 @@ import {
 import { getSectionGuidance, getSectionReview, sectionChatPlaceholder } from "@/lib/qbr/sectionGuidance";
 import DeckPreview from "./DeckPreview";
 import DeckLanguageToggle from "./DeckLanguageToggle";
-import AgentTaskCard from "./AgentTaskCard";
+import AgentTaskCard, { ChangeProposal } from "./AgentTaskCard";
 import { useAgentProposal } from "./useAgentProposal";
 
 interface DeckRef {
@@ -2495,6 +2495,22 @@ export default function CollaborateChat({
               </div>
             )}
 
+            {activeTab === "editor" && agent.proposal?.status === "proposed" && (!editorProgress.guidedMode || isCustomRailKey(activeRailKey)) && (
+              <div
+                id="pending-agent-proposal"
+                tabIndex={-1}
+                className="mt-2 scroll-mt-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <ChangeProposal
+                  proposal={agent.proposal}
+                  locale={uiLocale}
+                  busy={busy || formBusy || agent.stage !== "idle"}
+                  onAccept={acceptProposal}
+                  onReject={rejectProposal}
+                />
+              </div>
+            )}
+
             {activeTab === "editor" && editorProgress.guidedMode && (
               isCustomRailKey(activeRailKey) ? (
                 <div className="mt-2">
@@ -2558,22 +2574,33 @@ export default function CollaborateChat({
             {activeTab === "activity" && (
               <div className="mt-3">
                 {agent.proposal?.status === "proposed" && (
-                  <div className="mb-3 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs">
-                    <p className="font-semibold text-foreground">
-                      {uiLocale === "fr" ? "Une modification est prête à approuver." : "A proposed change is ready for approval."}
-                    </p>
-                    <p className="mt-1 text-muted-foreground">
-                      {uiLocale === "fr"
-                        ? "Passez à l’éditeur pour examiner, appliquer ou rejeter la modification proposée."
-                        : "Go back to the editor to review, apply, or reject the proposed change."}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={reviewPendingProposal}
-                      className="mt-2 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-                    >
-                      {uiLocale === "fr" ? "Approuver les modifications" : "Approve changes"}
-                    </button>
+                  <div className="mb-3 space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-foreground">
+                          {uiLocale === "fr" ? "Une modification est prête à approuver." : "A proposed change is ready for approval."}
+                        </p>
+                        <p className="mt-1 text-muted-foreground">
+                          {uiLocale === "fr"
+                            ? "Vous pouvez l’appliquer ou la rejeter ici, ou revenir à l’éditeur pour voir la diapositive."
+                            : "You can apply or reject it here, or jump back to the editor to see it on the slide."}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={reviewPendingProposal}
+                        className="rounded-md border bg-background px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-accent"
+                      >
+                        {uiLocale === "fr" ? "Voir dans l’éditeur" : "View in slide editor"}
+                      </button>
+                    </div>
+                    <ChangeProposal
+                      proposal={agent.proposal}
+                      locale={uiLocale}
+                      busy={busy || formBusy || agent.stage !== "idle"}
+                      onAccept={acceptProposal}
+                      onReject={rejectProposal}
+                    />
                   </div>
                 )}
                 {changeHistory.length > 0 && (
@@ -2671,6 +2698,33 @@ export default function CollaborateChat({
                 )}
                 <div ref={endRef} />
               </div>
+
+              {agent.proposal?.status === "proposed" && (
+                <div className="border-t border-primary/20 bg-primary/5 px-3 py-2 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-medium text-foreground">
+                      {uiLocale === "fr" ? "Modification en attente d’approbation" : "Change pending approval"}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={acceptProposal}
+                        disabled={busy || formBusy || agent.stage !== "idle"}
+                        className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                      >
+                        {uiLocale === "fr" ? "Appliquer" : "Apply"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={reviewPendingProposal}
+                        className="rounded-md border bg-background px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-accent"
+                      >
+                        {uiLocale === "fr" ? "Voir" : "View"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <form
                 onSubmit={(e) => {
