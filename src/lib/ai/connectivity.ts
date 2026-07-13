@@ -12,6 +12,8 @@ export type OpenAiConnectivityResult = {
 
 type Probe = (model: string) => Promise<void>;
 
+export const OPENAI_CONNECTIVITY_MAX_OUTPUT_TOKENS = 16;
+
 export async function testOpenAiConnectivity(probe: Probe = defaultProbe): Promise<OpenAiConnectivityResult> {
   if (!hasOpenAi()) {
     return {
@@ -52,6 +54,6 @@ async function defaultProbe(model: string) {
   await (openai as any).responses.create({
     model,
     input: "Reply with exactly: ok",
-    max_output_tokens: 8,
+    max_output_tokens: OPENAI_CONNECTIVITY_MAX_OUTPUT_TOKENS,
   });
 }
