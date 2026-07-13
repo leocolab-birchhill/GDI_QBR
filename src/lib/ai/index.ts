@@ -300,11 +300,13 @@ Respond ONLY with JSON: {"reply": string, "action": one of [${actionsList}], "re
  * regenerates the .pptx. Falls back to a no-op (asks the user to be specific)
  * when no OpenAI key is configured, so the chat still produces a fresh deck.
  */
-export async function editSlides(input: {
+export function buildSlideEditPrompt(input: {
   message: string;
   context: EditorContext;
   activeSection?: string | null;
-}): Promise<SlideEditResult> {
+  inputSource?: "activity_chat" | "guided_answer";
+  guidedTask?: EditorContext["requestContext"] extends infer R ? R extends { guidedTask?: infer T } ? T : never : never;
+}): { system: string; user: string } {
   const ops =
     "set_metric{group,label,value}, remove_metric{label}, add_priority{title,explanation}, reword_priority{title,explanation}, remove_priority{title}, add_upcoming{title,detail}, remove_upcoming{title}, add_commitment{action,owner,status}, set_commitment_status{action,status,owner}, remove_commitment{action}, set_meeting_date{date}, set_next_meeting_date{date}, set_agenda{detail}";
   const patchTargets =
@@ -312,7 +314,12 @@ export async function editSlides(input: {
   const activeCtx = input.activeSection
     ? `\nThe user is currently viewing the "${input.activeSection}" slide. Resolve ambiguous requests ("this slide", "make it shorter", "add one more") against that slide first.`
     : "";
-  const system = `You are the GDI BR slide editor — a capable PowerPoint editing assistant. The user is collaborating with you in a chat to revise their BR deck. The deck is regenerated from structured data PLUS deck layout metadata and presentation options.${activeCtx}
+  const guidedCtx = input.inputSource === "guided_answer" && input.guidedTask
+    ? `\nGUIDED ANSWER MODE: The user submitted this text from the "Answer in your own words" field for a guided task, not from the general chat composer. Treat command-like phrases as UI intent/context unless the user clearly wants that exact phrase stored as content. Extract the business content needed for the guided task into operations. Guided task JSON: ${JSON.stringify(input.guidedTask)}`
+    : input.inputSource === "activity_chat"
+      ? `\nACTIVITY CHAT MODE: The user submitted this from the activity chat composer. Use the active slide, editor progress, and full BR context to resolve intent, but do not assume they are answering the guided task unless they explicitly say so.`
+      : "";
+  const system = `You are the GDI BR slide editor — a capable PowerPoint editing assistant. The user is collaborating with you in a chat to revise their BR deck. The deck is regenerated from structured data PLUS deck layout metadata and presentation options.${activeCtx}${guidedCtx}
 
 You have TWO ways to apply edits — use BOTH when appropriate:
 
@@ -350,6 +357,7 @@ CRITICAL — NEVER REFUSE. Map every request to operations and/or patches.
 Rules:
 - AGENDA DISAMBIGUATION: if the user asks to delete/remove an item/text/entry FROM the agenda slide, update the agenda list with set_agenda and keep the remaining items. If the user asks to delete/remove/hide the agenda slide/section itself, use deckLayout.hiddenSections or remove_slide as appropriate.
 - MULTI-ITEM REQUESTS: when the user asks to add or set multiple priorities, metrics, follow-ups, what's-next items, commitments, actions, or slides, emit one separate operation per supplied item. Never use an instruction phrase such as "Add 4 priority items" as an item's title/action/label. Preserve each supplied item verbatim.
+- GUIDED ANSWERS: when inputSource is guided_answer, the text may mix meta-instructions ("add another priority", "fill this in", "answer this") with the actual answer. Use the guided task field and active section to decide what to extract. Do not store generic UI/action phrases as priority titles, metric labels, follow-up actions, or what's-next titles unless they are clearly the business content.
 - Match existing items by label/title/action/id (case-insensitive).
 - VERBATIM TEXT: copy user-supplied text EXACTLY into operation/patch fields.
 - Do NOT invent metric VALUES the user didn't provide.
@@ -359,6 +367,17 @@ Rules:
 Respond ONLY with JSON: {"reply": string, "operations": [...], "patches": [...], "regenerate": boolean, "suggestions": string[]}.`;
   const user = `User request:\n${input.message}\n\nCurrent BR editor context (JSON):\n${JSON.stringify(input.context, null, 2)}`;
 
+  return { system, user };
+}
+
+export async function editSlides(input: {
+  message: string;
+  context: EditorContext;
+  activeSection?: string | null;
+  inputSource?: "activity_chat" | "guided_answer";
+  guidedTask?: EditorContext["requestContext"] extends infer R ? R extends { guidedTask?: infer T } ? T : never : never;
+}): Promise<SlideEditResult> {
+  const { system, user } = buildSlideEditPrompt(input);
   const result = await callAndValidate(SlideEditSchema, system, user, {
     reasoningEffort: "low",
   });

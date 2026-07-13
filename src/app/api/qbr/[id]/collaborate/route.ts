@@ -38,6 +38,22 @@ import {
 } from "@/lib/i18n";
 import { getServerUiLocale } from "@/lib/i18n/serverLocale";
 
+const GuidedTaskSchema = z.object({
+  id: z.string(),
+  section: z.string(),
+  question: z.string(),
+  rationale: z.string().optional(),
+  fields: z.array(z.object({
+    key: z.string(),
+    label: z.string(),
+    inputType: z.string(),
+    required: z.boolean().optional(),
+    validation: z.unknown().optional(),
+  })).optional(),
+  priority: z.number().optional(),
+  complete: z.boolean().optional(),
+}).passthrough();
+
 const Schema = z.object({
   message: z.string().optional(),
   operations: z.array(SlideEditOpSchema).optional(),
@@ -48,6 +64,8 @@ const Schema = z.object({
   actorName: z.string().optional(),
   confirmSection: z.string().optional(),
   activeSection: z.string().optional(),
+  inputSource: z.enum(["activity_chat", "guided_answer"]).optional(),
+  guidedTask: GuidedTaskSchema.nullish(),
 }).refine((v) => v.message?.trim() || v.operations?.length || v.patches?.length || v.action === "accept" || v.action === "reject" || v.action === "undo", {
   message: "Provide a message, edit operation, deck patch, or proposal action",
 });
@@ -112,7 +130,7 @@ function clientFacingText(operations: SlideEditOp[]): string {
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
     const body = Schema.parse(await req.json());
-    const { operations, patches, actorEmail, actorName, confirmSection, activeSection, action, changeSetId } = body;
+    const { operations, patches, actorEmail, actorName, confirmSection, activeSection, action, changeSetId, inputSource, guidedTask } = body;
     const message = body.message?.trim() ?? "";
 
     const full = await getQbrFull(params.id);
@@ -322,8 +340,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     const edit = await editSlides({
       message,
-      context: buildEditorContext(full),
+      context: buildEditorContext(full, { activeSection: threadSection, inputSource, guidedTask: guidedTask ?? null, editorProgress: progress }),
       activeSection: threadSection,
+      inputSource,
+      guidedTask: guidedTask ?? null,
     });
     const hasProposedChanges = edit.operations.length > 0 || (edit.patches?.length ?? 0) > 0;
     const proposal: EditorProposal = {
