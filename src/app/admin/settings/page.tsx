@@ -11,6 +11,8 @@ export default function SettingsPage() {
   const [graph, setGraph] = useState<any>(null);
   const [pollMsg, setPollMsg] = useState<string | null>(null);
   const [graphNotice, setGraphNotice] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [openAiTest, setOpenAiTest] = useState<any>(null);
+  const [openAiTesting, setOpenAiTesting] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/settings").then((r) => r.json()).then(setS);
@@ -26,6 +28,27 @@ export default function SettingsPage() {
     const res = await fetch("/api/outlook/poll", { method: "POST" });
     const data = await res.json();
     setPollMsg(res.ok ? `Processed ${data.count} message(s).` : `Error: ${data.error}`);
+  }
+
+  async function testOpenAi() {
+    setOpenAiTesting(true);
+    setOpenAiTest(null);
+    try {
+      const res = await fetch("/api/admin/openai/test", { method: "POST" });
+      const data = await res.json();
+      setOpenAiTest({ ...data, httpOk: res.ok });
+    } catch (err) {
+      setOpenAiTest({
+        ok: false,
+        configured: false,
+        model: "unknown",
+        latencyMs: null,
+        message: "Unable to reach the OpenAI connectivity test endpoint.",
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setOpenAiTesting(false);
+    }
   }
 
   async function save() {
@@ -117,6 +140,38 @@ export default function SettingsPage() {
                 </p>
               )}
             </>
+          )}
+        </CardContent>
+      </Card>
+
+
+      <Card>
+        <CardHeader><CardTitle>OpenAI Connectivity</CardTitle></CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p className="text-muted-foreground">
+            Confirm that the server can use the configured <code>OPENAI_API_KEY</code> and <code>OPENAI_MODEL</code>.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" onClick={testOpenAi} disabled={openAiTesting}>
+              {openAiTesting ? "Testing OpenAI…" : "Test OpenAI connection"}
+            </Button>
+            {openAiTest?.model && (
+              <span className="text-muted-foreground">Model: <strong>{openAiTest.model}</strong></span>
+            )}
+          </div>
+          {openAiTest && (
+            <div
+              className={`rounded-md border px-3 py-2 ${
+                openAiTest.ok ? "border-gdi-green/30 bg-gdi-green/5 text-gdi-green" : "border-gdi-red/30 bg-gdi-red/5 text-gdi-red"
+              }`}
+            >
+              <div className="font-medium">
+                {openAiTest.ok ? "✓ Connected" : "Connection failed"}
+                {typeof openAiTest.latencyMs === "number" ? ` in ${openAiTest.latencyMs}ms` : ""}
+              </div>
+              <div>{openAiTest.message}</div>
+              {openAiTest.error && <div className="mt-1 font-mono text-xs">{openAiTest.error}</div>}
+            </div>
           )}
         </CardContent>
       </Card>
