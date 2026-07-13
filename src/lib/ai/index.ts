@@ -28,6 +28,7 @@ import {
 import { AnswerContext, deterministicAnswer } from "../qbr/answer";
 import { detectAction } from "../qbr/action";
 import { parseSlideEditFallback } from "../qbr/slideEditFallback";
+import { expandListAddOperations } from "../qbr/expandListOperations";
 import type { EditorContext } from "../qbr/editorContext";
 import {
   fallbackClassify,
@@ -348,6 +349,7 @@ CRITICAL — NEVER REFUSE. Map every request to operations and/or patches.
 
 Rules:
 - AGENDA DISAMBIGUATION: if the user asks to delete/remove an item/text/entry FROM the agenda slide, update the agenda list with set_agenda and keep the remaining items. If the user asks to delete/remove/hide the agenda slide/section itself, use deckLayout.hiddenSections or remove_slide as appropriate.
+- MULTI-ITEM REQUESTS: when the user asks to add or set multiple priorities, metrics, follow-ups, what's-next items, commitments, actions, or slides, emit one separate operation per supplied item. Never use an instruction phrase such as "Add 4 priority items" as an item's title/action/label. Preserve each supplied item verbatim.
 - Match existing items by label/title/action/id (case-insensitive).
 - VERBATIM TEXT: copy user-supplied text EXACTLY into operation/patch fields.
 - Do NOT invent metric VALUES the user didn't provide.
@@ -360,7 +362,11 @@ Respond ONLY with JSON: {"reply": string, "operations": [...], "patches": [...],
   const result = await callAndValidate(SlideEditSchema, system, user, {
     reasoningEffort: "low",
   });
-  return result ?? parseSlideEditFallback(input.message, input.context);
+  const resolved = result ?? parseSlideEditFallback(input.message, input.context);
+  return {
+    ...resolved,
+    operations: expandListAddOperations(resolved.operations, input.message),
+  };
 }
 
 /** Translate slide content prose to the target deck locale (fr-CA / en). */

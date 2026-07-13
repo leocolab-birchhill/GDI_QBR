@@ -11,6 +11,7 @@
 
 import { SlideEditOp, SlideEditResult } from "../ai/schemas";
 import { AnswerContext } from "./answer";
+import { expandListAddOperations } from "./expandListOperations";
 
 function inferGroup(label: string, hint?: string): string {
   const s = `${hint ?? ""} ${label}`.toLowerCase();
@@ -60,7 +61,7 @@ function parseOne(raw: string, context?: AnswerContext): Parsed | null {
 
   // ── Add a custom slide ───────────────────────────────────────────────────────
   const addSlide = line.match(
-    /^(?:please\s+)?(?:add|create|insert)\s+(?:a\s+)?(?:new\s+)?slide(?:\s+(?:called|titled|named))?\s*[:"']?\s*(.+?)\s*$/i,
+    /^(?:please\s+)?(?:add|create|insert)\s+(?:a\s+|\d+\s+)?(?:new\s+)?slides?(?:\s+(?:called|titled|named))?\s*[:"']?\s*(.+?)\s*$/i,
   );
   if (addSlide) {
     const title = addSlide[1].trim().replace(/^["']|["']$/g, "");
@@ -151,6 +152,17 @@ function parseOne(raw: string, context?: AnswerContext): Parsed | null {
     const title = (sv ? sv.label : payload) || payload;
     const detail = sv ? sv.value : undefined;
     if (title) return { op: { type: "add_upcoming", title, detail }, describe: `Add what's-next item "${title}"` };
+  }
+
+  // ── Add follow-up / commitment ──────────────────────────────────────────────
+  if (/\b(follow[\s-]?up|commitment|action)/i.test(lower) && /\b(add|new|create|include)\b/i.test(lower)) {
+    const payload = stripPrefix(
+      line,
+      /^(?:please\s+)?(?:add|create|include|new)\s+(?:a\s+|an\s+|the\s+)?(?:new\s+)?(?:follow[\s-]?up|commitment|action)(?:\s+item)?/i,
+    );
+    const sv = splitLabelValue(payload);
+    const action = (sv ? sv.label : payload) || payload;
+    if (action) return { op: { type: "add_commitment", action }, describe: `Add follow-up "${action}"` };
   }
 
   // ── Meeting date ─────────────────────────────────────────────────────────────
@@ -290,14 +302,17 @@ export function parseSlideEditFallback(message: string, context: AnswerContext):
     };
   }
 
+  const operations = expandListAddOperations(parsed.map((p) => p.op), message);
   const reply =
-    parsed.length === 1
+    operations.length !== parsed.length
+      ? `Done — I added ${operations.length} separate items and regenerated the deck. Anything else?`
+      : parsed.length === 1
       ? `Done — ${parsed[0].describe.charAt(0).toLowerCase()}${parsed[0].describe.slice(1)}, and I've regenerated the deck. Anything else?`
       : `Done — I applied ${parsed.length} changes and regenerated the deck:\n${parsed.map((p) => `• ${p.describe}`).join("\n")}\nAnything else?`;
 
   return {
     reply,
-    operations: parsed.map((p) => p.op),
+    operations,
     patches: [],
     regenerate: true,
     suggestions: buildSuggestions(context),

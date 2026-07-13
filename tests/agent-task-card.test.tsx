@@ -101,9 +101,43 @@ describe("AgentTaskCard", () => {
     );
     expect(screen.getByText("Pending approval")).toBeInTheDocument();
     expect(screen.getByText("Proposed actions")).toBeInTheDocument();
-    expect(screen.getByText("reword_priority")).toBeInTheDocument();
+    expect(screen.getByText("Reword priority")).toBeInTheDocument();
+    expect(screen.queryByText("reword_priority")).not.toBeInTheDocument();
     expect(screen.getByText("Client-safety review required")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Accept with warning" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
+  });
+
+  it("describes structural patches in business language", () => {
+    render(
+      <AgentTaskCard
+        review={review}
+        locale="en"
+        answer=""
+        onAnswerChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onConfirmSection={vi.fn()}
+        onAcceptProposal={vi.fn()}
+        onRejectProposal={vi.fn()}
+        onUndo={vi.fn()}
+        proposal={{
+          id: "proposal-2",
+          status: "proposed",
+          confidence: 0.8,
+          fieldChanges: [],
+          patches: [{
+            target: "deckLayout.extraDashboardGroups",
+            action: "add",
+            set: { title: "Customer experience" },
+          }],
+        }}
+        stage="idle"
+        busy={false}
+      >
+        <div />
+      </AgentTaskCard>,
+    );
+    expect(screen.getByText("Add a dashboard group “Customer experience”")).toBeInTheDocument();
+    expect(screen.queryByText(/deckLayout|extraDashboardGroups|:add/)).not.toBeInTheDocument();
   });
 });

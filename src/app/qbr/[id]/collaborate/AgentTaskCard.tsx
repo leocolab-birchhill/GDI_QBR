@@ -13,6 +13,97 @@ const STAGE_COPY: Record<Exclude<AgentStage, "idle">, { en: string; fr: string }
   reviewing_slide: { en: "Reviewing the slide", fr: "Révision de la diapositive" },
 };
 
+function quoted(value: unknown): string {
+  return typeof value === "string" && value.trim() ? `“${value.trim()}”` : "";
+}
+
+function describeOperation(op: { type: string; [key: string]: unknown }, locale: Locale): string {
+  const fr = locale === "fr";
+  const title = quoted(op.title);
+  const action = quoted(op.action);
+  const label = quoted(op.label);
+  const value = typeof op.value === "string" ? op.value : "";
+  const descriptions: Record<string, string> = {
+    set_metric: fr ? `Mettre ${label || "la mesure"} à ${value || "la nouvelle valeur"}` : `Set ${label || "the metric"} to ${value || "the new value"}`,
+    remove_metric: fr ? `Supprimer la mesure ${label}` : `Remove metric ${label}`,
+    add_priority: fr ? `Ajouter la priorité ${title}` : `Add priority ${title}`,
+    reword_priority: fr ? `Reformuler la priorité ${title}` : `Reword priority ${title}`,
+    remove_priority: fr ? `Supprimer la priorité ${title}` : `Remove priority ${title}`,
+    add_upcoming: fr ? `Ajouter l’élément à venir ${title}` : `Add what’s-next item ${title}`,
+    remove_upcoming: fr ? `Supprimer l’élément à venir ${title}` : `Remove what’s-next item ${title}`,
+    add_commitment: fr ? `Ajouter le suivi ${action}` : `Add follow-up ${action}`,
+    set_commitment_status: fr ? `Mettre à jour le statut du suivi ${action}` : `Update the status of follow-up ${action}`,
+    remove_commitment: fr ? `Supprimer le suivi ${action}` : `Remove follow-up ${action}`,
+    set_client_name: fr ? "Mettre à jour le nom du client" : "Update the client name",
+    set_agenda: fr ? "Mettre à jour l’ordre du jour" : "Update the agenda",
+    set_meeting_date: fr ? "Mettre à jour la date de la réunion" : "Update the meeting date",
+    set_next_meeting_date: fr ? "Mettre à jour la date de la prochaine réunion" : "Update the next meeting date",
+    add_slide: fr ? `Ajouter la diapositive ${title}` : `Add slide ${title}`,
+    edit_slide: fr ? `Modifier la diapositive ${title}` : `Update slide ${title}`,
+    remove_slide: fr ? `Supprimer la diapositive ${title}` : `Remove slide ${title}`,
+    move_slide: fr ? `Déplacer la diapositive ${title}` : `Move slide ${title}`,
+    set_section_hidden: op.hidden
+      ? (fr ? `Masquer la section ${quoted(op.section)}` : `Hide section ${quoted(op.section)}`)
+      : (fr ? `Afficher la section ${quoted(op.section)}` : `Show section ${quoted(op.section)}`),
+    add_dashboard_group: fr ? `Ajouter le groupe de tableau de bord ${quoted(op.group)}` : `Add dashboard group ${quoted(op.group)}`,
+    remove_dashboard_group: fr ? `Supprimer le groupe de tableau de bord ${quoted(op.group)}` : `Remove dashboard group ${quoted(op.group)}`,
+    set_page_numbers: fr ? "Mettre à jour la numérotation des pages" : "Update page numbering",
+    set_footer: fr ? "Mettre à jour le pied de page" : "Update the footer",
+    set_title_tag: fr ? "Mettre à jour l’étiquette du titre" : "Update the title label",
+    set_deck_option: fr ? "Mettre à jour les paramètres de la présentation" : "Update presentation settings",
+  };
+  return descriptions[op.type] || (fr ? "Mettre à jour la présentation" : "Update the presentation");
+}
+
+function describePatch(patch: { target: string; action?: string; [key: string]: unknown }, locale: Locale): string {
+  const fr = locale === "fr";
+  const set = patch.set && typeof patch.set === "object" ? patch.set as Record<string, unknown> : {};
+  const match = patch.match && typeof patch.match === "object" ? patch.match as Record<string, unknown> : {};
+  const name = quoted(set.title ?? set.section ?? set.group ?? match.title);
+
+  if (patch.target === "deckLayout.customSlides") {
+    if (patch.action === "add") return fr ? `Ajouter la diapositive ${name}` : `Add slide ${name}`;
+    if (patch.action === "remove") return fr ? `Supprimer la diapositive ${name}` : `Remove slide ${name}`;
+    return fr ? `Modifier la diapositive ${name}` : `Update slide ${name}`;
+  }
+  if (patch.target === "deckLayout.hiddenSections") {
+    return patch.action === "add"
+      ? (fr ? `Masquer la section ${name}` : `Hide section ${name}`)
+      : (fr ? `Afficher la section ${name}` : `Show section ${name}`);
+  }
+  if (patch.target === "deckLayout.sectionOrder") return fr ? "Réorganiser les diapositives" : "Reorder the slides";
+  if (patch.target === "deckLayout.hiddenDashboardGroups") {
+    return patch.action === "add"
+      ? (fr ? `Masquer le groupe de tableau de bord ${name}` : `Hide dashboard group ${name}`)
+      : (fr ? `Afficher le groupe de tableau de bord ${name}` : `Show dashboard group ${name}`);
+  }
+  if (patch.target === "deckLayout.extraDashboardGroups") {
+    if (patch.action === "remove") return fr ? `Supprimer le groupe de tableau de bord ${name}` : `Remove dashboard group ${name}`;
+    if (patch.action === "update") return fr ? `Modifier le groupe de tableau de bord ${name}` : `Update dashboard group ${name}`;
+    return fr ? `Ajouter un groupe au tableau de bord ${name}` : `Add a dashboard group ${name}`;
+  }
+  if (patch.target === "deckOptions") return fr ? "Mettre à jour les paramètres de la présentation" : "Update presentation settings";
+  return fr ? "Mettre à jour la présentation" : "Update the presentation";
+}
+
+function displayValue(value: unknown, locale: Locale): string {
+  if (value == null) return "—";
+  if (typeof value === "boolean") return value ? (locale === "fr" ? "Oui" : "Yes") : (locale === "fr" ? "Non" : "No");
+  if (Array.isArray(value)) return value.map((item) => displayValue(item, locale)).join(", ");
+  if (typeof value === "object") return locale === "fr" ? "Mis à jour" : "Updated";
+  return String(value);
+}
+
+function displayField(field: string, locale: Locale): string {
+  if (!/[_\.]|[a-z][A-Z]/.test(field)) return field;
+  const friendly = field
+    .replace(/^deckLayout\./, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[._-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return locale === "fr" ? `Modification : ${friendly}` : friendly;
+}
+
 export function StructuredAnswerFields({
   value,
   onChange,
@@ -65,8 +156,8 @@ export function ChangeProposal({
         ? (locale === "fr" ? "Rejetée" : "Rejected")
         : proposal.status;
   const operationSummary = [
-    ...(proposal.operations ?? []).map((op) => op.type),
-    ...(proposal.patches ?? []).map((patch) => `${patch.target}${patch.action ? `:${patch.action}` : ""}`),
+    ...(proposal.operations ?? []).map((op) => describeOperation(op, locale)),
+    ...(proposal.patches ?? []).map((patch) => describePatch(patch, locale)),
   ];
   return (
     <div className="rounded-lg border-2 border-primary/25 bg-background p-3" aria-live="polite">
@@ -85,16 +176,18 @@ export function ChangeProposal({
       {operationSummary.length > 0 && (
         <div className="mt-2 rounded-md border bg-muted/20 px-2 py-1.5 text-[11px]">
           <p className="font-medium">{locale === "fr" ? "Actions proposées" : "Proposed actions"}</p>
-          <p className="mt-0.5 text-muted-foreground">{operationSummary.join(", ")}</p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-muted-foreground">
+            {operationSummary.map((summary, index) => <li key={`${summary}-${index}`}>{summary}</li>)}
+          </ul>
         </div>
       )}
       <dl className="mt-2 space-y-1.5">
         {proposal.fieldChanges.map((change, index) => (
           <div key={`${change.field}-${index}`} className="grid grid-cols-[minmax(90px,0.7fr)_1fr] gap-2 rounded-md bg-muted/40 px-2 py-1.5 text-[11px]">
-            <dt className="font-medium">{change.field}</dt>
+            <dt className="font-medium">{displayField(change.field, locale)}</dt>
             <dd>
-              {change.before != null && <span className="text-muted-foreground line-through">{String(change.before)} </span>}
-              <span className="font-medium">{String(change.after ?? "—")}</span>
+              {change.before != null && <span className="text-muted-foreground line-through">{displayValue(change.before, locale)} </span>}
+              <span className="font-medium">{displayValue(change.after, locale)}</span>
             </dd>
           </div>
         ))}

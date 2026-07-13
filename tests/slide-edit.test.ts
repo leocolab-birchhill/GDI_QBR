@@ -98,6 +98,69 @@ describe("deterministic slide-edit parser", () => {
     expect(r.regenerate).toBe(true);
   });
 
+  it("expands a counted comma-separated priority request into separate items", () => {
+    const r = parseSlideEditFallback(
+      "Add 4 priority items: priority 4, priority 5, priority 6, priority 7",
+      ctx(),
+    );
+    expect(r.operations).toEqual([
+      expect.objectContaining({ type: "add_priority", title: "priority 4" }),
+      expect.objectContaining({ type: "add_priority", title: "priority 5" }),
+      expect.objectContaining({ type: "add_priority", title: "priority 6" }),
+      expect.objectContaining({ type: "add_priority", title: "priority 7" }),
+    ]);
+    expect(r.operations.every((op) => op.title !== "Add 4 priority items")).toBe(true);
+  });
+
+  it("expands newline and semicolon lists for other repeatable slide rows", () => {
+    const upcoming = parseSlideEditFallback(
+      "Add 3 what's-next items:\n1. Window washing\n2. Parking review\n3. Contract renewal",
+      ctx(),
+    );
+    expect(upcoming.operations.map((op) => op.title)).toEqual([
+      "Window washing",
+      "Parking review",
+      "Contract renewal",
+    ]);
+
+    const followUps = parseSlideEditFallback(
+      "Add 3 follow-ups: Confirm dates; Send proposal; Book review",
+      ctx(),
+    );
+    expect(followUps.operations.map((op) => op.action)).toEqual([
+      "Confirm dates",
+      "Send proposal",
+      "Book review",
+    ]);
+  });
+
+  it("expands counted dashboard metrics and custom slides", () => {
+    const metrics = parseSlideEditFallback(
+      "Set 3 metrics: Inspection score = 92%, Open invoices = 5, Incidents = 0",
+      ctx(),
+    );
+    expect(metrics.operations).toEqual([
+      expect.objectContaining({ type: "set_metric", label: "Inspection score", value: "92%" }),
+      expect.objectContaining({ type: "set_metric", label: "Open invoices", value: "5" }),
+      expect.objectContaining({ type: "set_metric", label: "Incidents", value: "0" }),
+    ]);
+
+    const slides = parseSlideEditFallback("Add 2 slides: Site notes, Renewal plan", ctx());
+    expect(slides.operations).toEqual([
+      expect.objectContaining({ type: "add_slide", title: "Site notes" }),
+      expect.objectContaining({ type: "add_slide", title: "Renewal plan" }),
+    ]);
+  });
+
+  it("does not split a single item containing a descriptive comma", () => {
+    const r = parseSlideEditFallback("Add a priority: Improve parking access, loading dock side", ctx());
+    expect(r.operations).toHaveLength(1);
+    expect(r.operations[0]).toMatchObject({
+      type: "add_priority",
+      title: "Improve parking access, loading dock side",
+    });
+  });
+
   it("asks for specifics (no rebuild) when nothing parses", () => {
     const r = parseSlideEditFallback("hello there", ctx());
     expect(r.operations).toEqual([]);

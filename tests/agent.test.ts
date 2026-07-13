@@ -93,6 +93,21 @@ describe("editSlides (offline fallback)", () => {
     expect(res.operations[0]).toMatchObject({ type: "set_metric", value: "92%" });
   });
 
+  it("returns one add operation per item in a natural-language list", async () => {
+    const res = await editSlides({
+      message: "Add 4 priority items: priority 4, priority 5, priority 6, priority 7",
+      context: editorCtx(),
+      activeSection: "priorities",
+    });
+    expect(res.operations).toHaveLength(4);
+    expect(res.operations.map((op) => op.title)).toEqual([
+      "priority 4",
+      "priority 5",
+      "priority 6",
+      "priority 7",
+    ]);
+  });
+
   it("asks for specifics (no rebuild) when the instruction is vague", async () => {
     const res = await editSlides({ message: "update a dashboard metric value", context: editorCtx() });
     expect(res.operations).toEqual([]);
