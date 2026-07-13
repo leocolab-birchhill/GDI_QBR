@@ -2112,7 +2112,7 @@ export default function CollaborateChat({
     }
   }
 
-  async function send(text: string, confirmSection?: string) {
+  async function send(text: string, confirmSection?: string, requestContext: { inputSource?: "activity_chat" | "guided_answer"; guidedTask?: unknown } = { inputSource: "activity_chat" }) {
     const messageText = text.trim();
     if (!messageText || busy) return;
     setInput("");
@@ -2132,12 +2132,12 @@ export default function CollaborateChat({
         const res = await fetch(`/api/qbr/${qbrId}/collaborate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: messageText, confirmSection, activeSection: activeSectionParam() }),
+          body: JSON.stringify({ message: messageText, confirmSection, activeSection: activeSectionParam(), ...requestContext }),
         });
         data = await res.json() as Record<string, unknown>;
         if (!res.ok) throw new Error(String(data.error ?? res.statusText));
       } else {
-        data = await agent.propose(messageText, activeSectionParam());
+        data = await agent.propose(messageText, activeSectionParam(), requestContext);
       }
       applyAgentResult(data);
       setMessages((m) => [
@@ -2500,7 +2500,7 @@ export default function CollaborateChat({
                   locale={uiLocale}
                   answer={input}
                   onAnswerChange={setInput}
-                  onSubmit={() => send(input)}
+                  onSubmit={() => send(input, undefined, { inputSource: "guided_answer", guidedTask: sectionReview.nextTask })}
                   onConfirmSection={confirmCurrentSection}
                   onAcceptProposal={acceptProposal}
                   onRejectProposal={rejectProposal}

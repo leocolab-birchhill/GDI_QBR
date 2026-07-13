@@ -14,6 +14,13 @@ export interface ProposalView {
   review?: { isClientSafe: boolean; issues: string[]; suggestedRewrite?: string | null } | null;
 }
 
+export type AgentInputSource = "activity_chat" | "guided_answer";
+
+export interface AgentRequestContext {
+  inputSource?: AgentInputSource;
+  guidedTask?: unknown;
+}
+
 export type AgentStage =
   | "idle"
   | "understanding"
@@ -71,7 +78,7 @@ export function useAgentProposal(qbrId: string) {
     return data as Record<string, unknown>;
   }, [qbrId]);
 
-  const propose = useCallback(async (message: string, activeSection: string) => {
+  const propose = useCallback(async (message: string, activeSection: string, requestContext: AgentRequestContext = {}) => {
     setStage("understanding");
     setActivity([]);
     try {
@@ -80,7 +87,7 @@ export function useAgentProposal(qbrId: string) {
         const response = await fetch(`/api/qbr/${qbrId}/collaborate/stream`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, action: "propose", activeSection }),
+          body: JSON.stringify({ message, action: "propose", activeSection, ...requestContext }),
         });
         if (!response.ok || !response.body) throw new Error(response.statusText);
         data = await readEventStream(response, (next) => {
@@ -88,7 +95,7 @@ export function useAgentProposal(qbrId: string) {
           setActivity((items) => [...items, next]);
         });
       } catch {
-        data = await post({ message, action: "propose", activeSection });
+        data = await post({ message, action: "propose", activeSection, ...requestContext });
       }
       setProposal((data.proposal as ProposalView | null) ?? null);
       return data;
