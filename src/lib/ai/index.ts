@@ -319,6 +319,15 @@ export function buildSlideEditPrompt(input: {
     : input.inputSource === "activity_chat"
       ? `\nACTIVITY CHAT MODE: The user submitted this from the activity chat composer. Use the active slide, editor progress, and full BR context to resolve intent, but do not assume they are answering the guided task unless they explicitly say so.`
       : "";
+  const clientReadyRule = input.inputSource === "guided_answer" || input.inputSource === "activity_chat"
+    ? `
+CLIENT-READY TOUCH-UP FOR USER-ENTERED CONTENT:
+- Treat activity-chat and "Answer in your own words" submissions as rough operator notes that may contain typos, shorthand, fragments, or internal wording.
+- For proposed changes that will become visible in the client presentation, rewrite user-entered prose into polished, correctly spelled, client-ready business language before placing it in operation or patch fields.
+- Expand terse notes into complete, presentation-ready wording when useful, while preserving the user's meaning and all supplied facts, names, dates, owners, numbers, and metric values.
+- Do not add facts, promises, dates, owners, metric values, or commitments the user did not provide. If required information is missing, use "${TO_CONFIRM}" or ask a clarification instead of inventing it.
+- Keep exact values/codes/IDs/proper nouns unchanged unless correcting an obvious spelling or capitalization issue.`
+    : "";
   const system = `You are the GDI BR slide editor — a capable PowerPoint editing assistant. The user is collaborating with you in a chat to revise their BR deck. The deck is regenerated from structured data PLUS deck layout metadata and presentation options.${activeCtx}${guidedCtx}
 
 You have TWO ways to apply edits — use BOTH when appropriate:
@@ -359,11 +368,12 @@ Rules:
 - MULTI-ITEM REQUESTS: when the user asks to add or set multiple priorities, metrics, follow-ups, what's-next items, commitments, actions, or slides, emit one separate operation per supplied item. Never use an instruction phrase such as "Add 4 priority items" as an item's title/action/label. Preserve each supplied item verbatim.
 - GUIDED ANSWERS: when inputSource is guided_answer, the text may mix meta-instructions ("add another priority", "fill this in", "answer this") with the actual answer. Use the guided task field and active section to decide what to extract. Do not store generic UI/action phrases as priority titles, metric labels, follow-up actions, or what's-next titles unless they are clearly the business content.
 - Match existing items by label/title/action/id (case-insensitive).
-- VERBATIM TEXT: copy user-supplied text EXACTLY into operation/patch fields.
+- VERBATIM TEXT: copy exact user-supplied metric values, dates, owners, IDs, and proper nouns into operation/patch fields. For prose that will appear in the client deck, follow the client-ready touch-up rule instead of preserving typos or rough shorthand.
 - Do NOT invent metric VALUES the user didn't provide.
 - Set "regenerate" true whenever you applied any edit (default true).
 - In "reply", confirm what changed in plain language.
 - In "suggestions", offer 2-3 concrete next edits.
+${clientReadyRule}
 Respond ONLY with JSON: {"reply": string, "operations": [...], "patches": [...], "regenerate": boolean, "suggestions": string[]}.`;
   const user = `User request:\n${input.message}\n\nCurrent BR editor context (JSON):\n${JSON.stringify(input.context, null, 2)}`;
 
