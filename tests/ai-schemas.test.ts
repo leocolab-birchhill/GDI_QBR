@@ -7,6 +7,7 @@ import {
   fallbackRewrite,
 } from "@/lib/ai/fallbacks";
 import { TO_CONFIRM } from "@/lib/constants";
+import { buildSlideEditPrompt } from "@/lib/ai";
 
 describe("intent classification schema validation", () => {
   it("validates a good intent result", () => {
@@ -94,5 +95,38 @@ describe("editor proposal validation", () => {
       reply: "x",
       operations: [{ type: "invent_metric", label: "Score", value: "100" }],
     }).success).toBe(false);
+  });
+});
+
+describe("slide editor prompt guidance", () => {
+  it("tells OpenAI to polish guided and activity chat content for client-ready proposals", () => {
+    const baseContext = {
+      account: { clientName: "Acme" },
+      slides: {},
+      deckLayout: {},
+      deckOptions: {},
+      requestContext: {},
+    } as any;
+
+    const guided = buildSlideEditPrompt({
+      message: "staffing bad pls expand",
+      context: baseContext,
+      inputSource: "guided_answer",
+      guidedTask: { id: "priority", section: "priorities", question: "What should we add?" } as any,
+    });
+    const activity = buildSlideEditPrompt({
+      message: "add priority staffing bad",
+      context: baseContext,
+      inputSource: "activity_chat",
+    });
+
+    for (const prompt of [guided.system, activity.system]) {
+      expect(prompt).toContain("CLIENT-READY TOUCH-UP FOR USER-ENTERED CONTENT");
+      expect(prompt).toContain("polished, correctly spelled, client-ready business language");
+      expect(prompt).toContain("preserving the user's meaning");
+      expect(prompt).toContain("Do not add facts");
+    }
+    expect(guided.system).toContain("Answer in your own words");
+    expect(activity.system).toContain("ACTIVITY CHAT MODE");
   });
 });
