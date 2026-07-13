@@ -311,7 +311,12 @@ export default function AgentTaskCard({
           </>
         )}
         {proposal && (
-          <div ref={proposalRef} tabIndex={-1} className="scroll-mt-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50">
+          <div
+            id="pending-agent-proposal"
+            ref={proposalRef}
+            tabIndex={-1}
+            className="scroll-mt-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
             <ChangeProposal proposal={proposal} locale={locale} busy={busy} onAccept={onAcceptProposal} onReject={onRejectProposal} />
           </div>
         )}
