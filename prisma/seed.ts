@@ -16,7 +16,7 @@ async function main() {
 
   // ── Users ───────────────────────────────────────────────────────────────────
   // lcolabrese is the default owner/recipient for all roles (used in testing).
-  const leo = await upsertUser("lcolabrese@birchhillequity.com", "Leo Colabrese", "Admin");
+  const leo = await upsertUser("lcolabrese@birchhillequity.com", "Leo Colabrese", "Admin", ["Quebec"]);
   const bruno = leo;
   const sarah = leo;
   const marie = leo;
@@ -193,8 +193,12 @@ async function main() {
   console.log(`  QBR: ${cycle.quarter} ${cycle.year} (id=${cycle.id})`);
 }
 
-async function upsertUser(email: string, name: string, role: string) {
-  return prisma.user.upsert({ where: { email }, update: { name, role }, create: { email, name, role } });
+async function upsertUser(email: string, name: string, role: string, regions: string[] = []) {
+  return prisma.user.upsert({
+    where: { email },
+    update: { name, role, regions },
+    create: { email, name, role, regions },
+  });
 }
 
 main()

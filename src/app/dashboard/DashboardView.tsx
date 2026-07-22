@@ -285,7 +285,6 @@ function QbrCard({ cycle: c, s }: { cycle: DashboardCycle; s: DashStrings }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          approverEmail: c.vpOwner?.email ?? "bruno@gdi.com",
           status: next ? "approved" : "revision_requested",
           comments: next ? undefined : "Approval revoked from dashboard",
         }),

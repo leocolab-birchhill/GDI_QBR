@@ -117,13 +117,11 @@ export default function QbrWorkspace({ qbr }: { qbr: any }) {
   function toggleVpApproval() {
     if (vpApproved) {
       void call("VP", `/api/qbr/${id}/approve`, {
-        approverEmail: vpEmail,
         status: "revision_requested",
         comments: "Approval revoked from workspace",
       });
     } else {
       void call("VP", `/api/qbr/${id}/approve`, {
-        approverEmail: vpEmail,
         status: "approved",
       });
     }

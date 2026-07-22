@@ -8,6 +8,7 @@ import {
   send14DayDraftReminder,
   sendFinalReviewReminder,
 } from "@/lib/jobs";
+import { isQbrAccess, requireQbrAccessApi } from "@/lib/auth";
 
 const REMINDERS = {
   monthly: sendMonthlyCheckIn,
@@ -21,6 +22,9 @@ const REMINDERS = {
 const Schema = z.object({ type: z.enum(Object.keys(REMINDERS) as [keyof typeof REMINDERS]) });
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const access = await requireQbrAccessApi(req, params.id, "canEditDeck");
+  if (!isQbrAccess(access)) return access;
+
   try {
     const { type } = Schema.parse(await req.json());
     await REMINDERS[type](params.id);

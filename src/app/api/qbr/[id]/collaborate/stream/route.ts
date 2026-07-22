@@ -6,6 +6,24 @@ function event(name: string, data: unknown) {
   return encoder.encode(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
+/** Forward identity headers so collaborate auth still sees the Databricks SSO user. */
+function forwardHeaders(req: Request): HeadersInit {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
+  for (const key of [
+    "cookie",
+    "x-forwarded-email",
+    "x-forwarded-user",
+    "x-forwarded-preferred-username",
+    "x-forwarded-host",
+  ]) {
+    const value = req.headers.get(key);
+    if (value) headers[key] = value;
+  }
+  return headers;
+}
+
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const body = await req.text();
   const url = new URL(req.url);
@@ -20,10 +38,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         const response = await collaboratePost(
           new Request(url, {
             method: "POST",
-            headers: {
-              "content-type": "application/json",
-              cookie: req.headers.get("cookie") ?? "",
-            },
+            headers: forwardHeaders(req),
             body,
           }),
           { params },

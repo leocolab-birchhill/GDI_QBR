@@ -4,9 +4,23 @@ import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
+type UserRow = { id: string; name: string; role: string };
+type AccountRow = {
+  id: string;
+  clientName: string;
+  region?: string | null;
+  logoUrl?: string | null;
+  vpOwnerId?: string | null;
+  directorId?: string | null;
+  accountManagerId?: string | null;
+  vpOwner?: { name: string } | null;
+  director?: { name: string } | null;
+  accountManager?: { name: string } | null;
+};
+
 export default function AccountsPage() {
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [accounts, setAccounts] = useState<AccountRow[]>([]);
+  const [users, setUsers] = useState<UserRow[]>([]);
   const [form, setForm] = useState({
     clientName: "",
     region: "",
@@ -15,36 +29,70 @@ export default function AccountsPage() {
     accountManagerId: "",
   });
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [edit, setEdit] = useState({
+    clientName: "",
+    region: "",
+    vpOwnerId: "",
+    directorId: "",
+    accountManagerId: "",
+  });
+  const [deleteTarget, setDeleteTarget] = useState<AccountRow | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
   async function load() {
-    setAccounts(await fetch("/api/admin/accounts").then((r) => r.json()));
-    setUsers(await fetch("/api/admin/users").then((r) => r.json()));
+    const [a, u] = await Promise.all([
+      fetch("/api/admin/accounts").then((r) => r.json()),
+      fetch("/api/admin/users").then((r) => r.json()),
+    ]);
+    setAccounts(Array.isArray(a) ? a : []);
+    setUsers(Array.isArray(u) ? u : []);
   }
   useEffect(() => {
     load();
   }, []);
 
-  function startEdit(a: any) {
+  function startEdit(a: AccountRow) {
     setEditingId(a.id);
-    setEditName(a.clientName);
+    setEdit({
+      clientName: a.clientName,
+      region: a.region ?? "",
+      vpOwnerId: a.vpOwnerId ?? "",
+      directorId: a.directorId ?? "",
+      accountManagerId: a.accountManagerId ?? "",
+    });
   }
 
   async function saveEdit(id: string) {
-    const name = editName.trim();
+    const name = edit.clientName.trim();
     if (!name) return;
-    await fetch("/api/admin/accounts", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, clientName: name }),
-    });
-    setEditingId(null);
-    setEditName("");
-    load();
+    setSavingId(id);
+    setMessage("");
+    try {
+      const res = await fetch("/api/admin/accounts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          clientName: name,
+          region: edit.region.trim() || null,
+          vpOwnerId: edit.vpOwnerId || null,
+          directorId: edit.directorId || null,
+          accountManagerId: edit.accountManagerId || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage(data.error ?? "Update failed");
+        return;
+      }
+      setEditingId(null);
+      await load();
+    } finally {
+      setSavingId(null);
+    }
   }
 
   async function deleteAccount() {
@@ -74,10 +122,10 @@ export default function AccountsPage() {
 
   async function create() {
     if (!form.clientName) return;
-    const body: any = {
+    const body: Record<string, string> = {
       clientName: form.clientName,
-      region: form.region || undefined,
     };
+    if (form.region) body.region = form.region;
     for (const k of ["vpOwnerId", "directorId", "accountManagerId"] as const)
       if (form[k]) body[k] = form[k];
     await fetch("/api/admin/accounts", {
@@ -97,7 +145,12 @@ export default function AccountsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Accounts</h1>
+      <div>
+        <h1 className="text-2xl font-bold">Accounts</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Region + VP/Director/AM ownership control who can open each client&apos;s BRs.
+        </p>
+      </div>
       {message && (
         <p className="rounded-md border bg-card p-3 text-sm">{message}</p>
       )}
@@ -115,7 +168,7 @@ export default function AccountsPage() {
           />
           <input
             className="rounded-md border px-3 py-2 text-sm"
-            placeholder="Region"
+            placeholder="Region (e.g. Quebec)"
             value={form.region}
             onChange={(e) => setForm({ ...form, region: e.target.value })}
           />
@@ -160,7 +213,7 @@ export default function AccountsPage() {
             </thead>
             <tbody>
               {accounts.map((a) => (
-                <tr key={a.id} className="border-t">
+                <tr key={a.id} className="border-t align-top">
                   <td className="p-2">
                     <LogoCell account={a} onUploaded={load} />
                   </td>
@@ -169,36 +222,75 @@ export default function AccountsPage() {
                       <input
                         autoFocus
                         className="w-full rounded-md border px-2 py-1 text-sm"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") saveEdit(a.id);
-                          if (e.key === "Escape") setEditingId(null);
-                        }}
+                        value={edit.clientName}
+                        onChange={(e) => setEdit({ ...edit, clientName: e.target.value })}
                       />
                     ) : (
                       a.clientName
                     )}
                   </td>
-                  <td className="p-2">{a.region || "—"}</td>
-                  <td className="p-2">{a.vpOwner?.name || "—"}</td>
-                  <td className="p-2">{a.director?.name || "—"}</td>
-                  <td className="p-2">{a.accountManager?.name || "—"}</td>
+                  <td className="p-2">
+                    {editingId === a.id ? (
+                      <input
+                        className="w-full rounded-md border px-2 py-1 text-sm"
+                        value={edit.region}
+                        placeholder="Quebec"
+                        onChange={(e) => setEdit({ ...edit, region: e.target.value })}
+                      />
+                    ) : (
+                      a.region || "—"
+                    )}
+                  </td>
+                  <td className="p-2">
+                    {editingId === a.id ? (
+                      <UserSelect
+                        label="VP"
+                        users={users}
+                        value={edit.vpOwnerId}
+                        onChange={(v) => setEdit({ ...edit, vpOwnerId: v })}
+                      />
+                    ) : (
+                      a.vpOwner?.name || "—"
+                    )}
+                  </td>
+                  <td className="p-2">
+                    {editingId === a.id ? (
+                      <UserSelect
+                        label="Director"
+                        users={users}
+                        value={edit.directorId}
+                        onChange={(v) => setEdit({ ...edit, directorId: v })}
+                      />
+                    ) : (
+                      a.director?.name || "—"
+                    )}
+                  </td>
+                  <td className="p-2">
+                    {editingId === a.id ? (
+                      <UserSelect
+                        label="AM"
+                        users={users}
+                        value={edit.accountManagerId}
+                        onChange={(v) => setEdit({ ...edit, accountManagerId: v })}
+                      />
+                    ) : (
+                      a.accountManager?.name || "—"
+                    )}
+                  </td>
                   <td className="p-2 text-right">
                     {editingId === a.id ? (
                       <span className="flex justify-end gap-2">
-                        <Button onClick={() => saveEdit(a.id)}>Save</Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => setEditingId(null)}
-                        >
+                        <Button disabled={savingId === a.id} onClick={() => saveEdit(a.id)}>
+                          {savingId === a.id ? "Saving…" : "Save"}
+                        </Button>
+                        <Button variant="outline" onClick={() => setEditingId(null)}>
                           Cancel
                         </Button>
                       </span>
                     ) : (
                       <span className="flex justify-end gap-2">
                         <Button variant="outline" onClick={() => startEdit(a)}>
-                          Rename
+                          Edit
                         </Button>
                         <Button
                           variant="outline"
@@ -269,16 +361,11 @@ export default function AccountsPage() {
   );
 }
 
-/**
- * Per-account logo: shows the current logo (used on the QBR title-slide
- * co-branding lockup) and lets an admin upload/replace it. The image is saved to
- * the account profile so every deck for this client picks it up automatically.
- */
 function LogoCell({
   account,
   onUploaded,
 }: {
-  account: any;
+  account: AccountRow;
   onUploaded: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -350,7 +437,7 @@ function UserSelect({
   onChange,
 }: {
   label: string;
-  users: any[];
+  users: UserRow[];
   value: string;
   onChange: (v: string) => void;
 }) {

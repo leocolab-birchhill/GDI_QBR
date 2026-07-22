@@ -3,9 +3,13 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { createBlankQbr } from "@/lib/qbr/createWorkflow";
 import { LOCALES } from "@/lib/constants";
+import { requireAccountAccessApi } from "@/lib/auth";
 
 /** List this client's existing QBR cycles (newest first) for the editor picker. */
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const access = await requireAccountAccessApi(req, params.id);
+  if (access instanceof NextResponse) return access;
+
   const account = await prisma.account.findUnique({
     where: { id: params.id },
     include: {
@@ -39,6 +43,9 @@ const Schema = z.object({
 
 /** Create a blank QBR for an existing client account. */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const access = await requireAccountAccessApi(req, params.id, "canEditDeck");
+  if (access instanceof NextResponse) return access;
+
   try {
     const body = Schema.parse(await req.json());
     const result = await createBlankQbr({
@@ -47,6 +54,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       year: body.year,
       meetingDate: body.meetingDate ? new Date(body.meetingDate) : null,
       language: body.language,
+      createdById: access.user.id,
     });
     return NextResponse.json({
       ok: true,

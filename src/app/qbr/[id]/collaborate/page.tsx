@@ -11,11 +11,13 @@ import {
   resolveQbrLocale,
 } from "@/lib/i18n";
 import { getServerUiLocale } from "@/lib/i18n/serverLocale";
+import { requireQbrAccessPage } from "@/lib/auth";
 import CollaborateChat from "./CollaborateChat";
 
 export const dynamic = "force-dynamic";
 
 export default async function CollaboratePage({ params }: { params: { id: string } }) {
+  await requireQbrAccessPage(params.id);
   const qbr = await getQbrFull(params.id);
   if (!qbr) notFound();
 

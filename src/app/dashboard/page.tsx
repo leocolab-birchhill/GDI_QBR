@@ -6,11 +6,14 @@ import {
 } from "@/lib/qbr/dashboard";
 import { getServerUiLocale } from "@/lib/i18n/serverLocale";
 import { getStrings } from "@/lib/i18n";
+import { requireAdminPage } from "@/lib/auth";
 import DashboardView from "./DashboardView";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  await requireAdminPage("/collaborate");
+
   const [rawCycles, rawAudit] = await Promise.all([
     prisma.qbrCycle.findMany({
       orderBy: { updatedAt: "desc" },

@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { processInboundEmail } from "@/lib/qbr/orchestrator";
 import { env } from "@/lib/env";
+import { isAuthUser, requireCapabilityApi } from "@/lib/auth";
 
 const StartSchema = z.object({
-  fromEmail: z.string().email(),
+  fromEmail: z.string().email().optional(),
   clientName: z.string(),
   quarter: z.string(),
   year: z.coerce.number(),
@@ -15,10 +16,14 @@ const StartSchema = z.object({
 
 /** Programmatic QBR start (alternative to email). Builds a synthetic CREATE_QBR email. */
 export async function POST(req: NextRequest) {
+  const user = await requireCapabilityApi(req, "canEditDeck");
+  if (!isAuthUser(user)) return user;
+
   try {
     const body = StartSchema.parse(await req.json());
+    const fromEmail = user.email;
     const result = await processInboundEmail({
-      fromEmail: body.fromEmail,
+      fromEmail,
       toEmail: env.QBR_MAILBOX,
       subject: `Start QBR - ${body.clientName} - ${body.quarter} ${body.year}`,
       bodyText: `Client: ${body.clientName}\nQuarter: ${body.quarter} ${body.year}\n${body.meetingDate ? `Meeting date: ${body.meetingDate}\n` : ""}${body.vp ? `VP: ${body.vp}\n` : ""}${body.director ? `Director: ${body.director}\n` : ""}`,

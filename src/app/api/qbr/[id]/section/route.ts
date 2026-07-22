@@ -3,6 +3,7 @@ import { z } from "zod";
 import { setGuidedSection } from "@/lib/qbr/createWorkflow";
 import { getGuidedPrompt, GUIDED_SECTIONS, type GuidedSection } from "@/lib/i18n";
 import { getServerUiLocale } from "@/lib/i18n/serverLocale";
+import { isQbrAccess, requireQbrAccessApi } from "@/lib/auth";
 
 const Schema = z.object({
   section: z.string().refine((s): s is GuidedSection => (GUIDED_SECTIONS as readonly string[]).includes(s), {
@@ -13,6 +14,9 @@ const Schema = z.object({
 
 /** Jump the guided editor back/forward to a section so the user can revise it. */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const access = await requireQbrAccessApi(req, params.id, "canEditDeck");
+  if (!isQbrAccess(access)) return access;
+
   try {
     const { section, completed } = Schema.parse(await req.json());
     const editorProgress = await setGuidedSection(params.id, section as GuidedSection, completed);

@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { loadEditorMessages } from "@/lib/qbr/createWorkflow";
+import { isQbrAccess, requireQbrAccessApi } from "@/lib/auth";
 
 /** Load persisted collaborative editor messages. */
 export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const access = await requireQbrAccessApi(req, params.id);
+  if (!isQbrAccess(access)) return access;
+
   const url = new URL(req.url);
   const since = url.searchParams.get("since");
   const section = url.searchParams.get("section");

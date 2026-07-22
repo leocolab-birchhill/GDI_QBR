@@ -27,6 +27,8 @@ import DeckPreview from "./DeckPreview";
 import DeckLanguageToggle from "./DeckLanguageToggle";
 import AgentTaskCard, { ChangeProposal } from "./AgentTaskCard";
 import { useAgentProposal } from "./useAgentProposal";
+import AddRowButton from "./AddRowButton";
+import EditorTour from "./EditorTour";
 
 interface DeckRef {
   fileUrl: string;
@@ -514,7 +516,7 @@ function FollowUpsTable({
             {rows.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-2 py-4 text-center text-muted-foreground">
-                  {locale === "fr" ? "Aucun engagement — ajoutez-en un ci-dessous." : "No follow-ups yet — add one below."}
+                  {s.editor.emptyFollowUps}
                 </td>
               </tr>
             )}
@@ -571,13 +573,7 @@ function FollowUpsTable({
           </tbody>
         </table>
       </div>
-      <button
-        type="button"
-        onClick={onAdd}
-        className="text-xs font-medium text-primary hover:underline"
-      >
-        {s.editor.addFollowUp}
-      </button>
+      <AddRowButton label={s.editor.addFollowUp} onClick={onAdd} tourTarget />
     </div>
   );
 }
@@ -616,7 +612,9 @@ function ProseList({
   return (
     <div className="space-y-3">
       {rows.length === 0 ? (
-        <p className="rounded-md border border-dashed px-3 py-4 text-center text-xs text-muted-foreground">{emptyText}</p>
+        <div className="rounded-lg border border-dashed border-primary/25 bg-primary/5 px-3 py-5 text-center">
+          <p className="text-xs text-muted-foreground">{emptyText}</p>
+        </div>
       ) : (
         <ul className="space-y-2">
           {rows.map((row, i) => (
@@ -654,9 +652,7 @@ function ProseList({
           ))}
         </ul>
       )}
-      <button type="button" onClick={onAdd} className="text-xs font-medium text-primary hover:underline">
-        {addLabel}
-      </button>
+      <AddRowButton label={addLabel} onClick={onAdd} tourTarget />
     </div>
   );
 }
@@ -766,7 +762,7 @@ function MetricList({
             {rows.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-2 py-4 text-center text-muted-foreground">
-                  {locale === "fr" ? "Aucun indicateur — ajoutez-en un ci-dessous." : "No metrics yet — add one below."}
+                  {s.editor.emptyMetrics}
                 </td>
               </tr>
             )}
@@ -805,9 +801,7 @@ function MetricList({
           </tbody>
         </table>
       </div>
-      <button type="button" onClick={onAdd} className="text-xs font-medium text-primary hover:underline">
-        {locale === "fr" ? "+ Ajouter un indicateur" : "+ Add metric"}
-      </button>
+      <AddRowButton label={s.editor.addMetric} onClick={onAdd} tourTarget />
     </div>
   );
 }
@@ -1049,8 +1043,8 @@ function SlideFormContent({
         titleLabel={locale === "fr" ? "Priorité" : "Priority"}
         bodyLabel={locale === "fr" ? "Explication" : "Client-ready explanation"}
         bodyPlaceholder={getStrings(locale).toConfirm}
-        addLabel={locale === "fr" ? "+ Ajouter une priorité" : "+ Add priority"}
-        emptyText={locale === "fr" ? "Aucune priorité — ajoutez-en une ci-dessous." : "No priorities yet — add one below."}
+        addLabel={getStrings(locale).editor.addPriority}
+        emptyText={getStrings(locale).editor.emptyPriorities}
         onChange={setPriorityRows}
         onAdd={() => setPriorityRows((rows) => [...rows, { id: newRowId(), title: "", body: "" }])}
         onRemove={(id) => setPriorityRows((rows) => rows.filter((r) => r.id !== id))}
@@ -1094,8 +1088,8 @@ function SlideFormContent({
         titleLabel={locale === "fr" ? "Élément à venir" : "Upcoming item"}
         bodyLabel={locale === "fr" ? "Détail / échéancier" : "Detail / timing"}
         bodyPlaceholder={getStrings(locale).toConfirm}
-        addLabel={locale === "fr" ? "+ Ajouter un élément" : "+ Add item"}
-        emptyText={locale === "fr" ? "Aucun élément — ajoutez-en un ci-dessous." : "No items yet — add one below."}
+        addLabel={getStrings(locale).editor.addItem}
+        emptyText={getStrings(locale).editor.emptyUpcoming}
         onChange={setUpcomingRows}
         onAdd={() => setUpcomingRows((rows) => [...rows, { id: newRowId(), title: "", body: "" }])}
         onRemove={(id) => setUpcomingRows((rows) => rows.filter((r) => r.id !== id))}
@@ -1308,7 +1302,7 @@ function SlideEditorPanel({
 
           {formResult && <p className="mt-3 text-xs text-muted-foreground">{formResult}</p>}
 
-          <div className="mt-5 flex flex-wrap items-center gap-2 border-t pt-4">
+          <div className="mt-5 flex flex-wrap items-center gap-2 border-t pt-4" data-tour="confirm">
             <button
               type="button"
               disabled={busy || !hasUnsaved}
@@ -1562,7 +1556,7 @@ function SlideRail({
   };
 
   return (
-    <div className="mt-2 rounded-lg border bg-muted/20">
+    <div className="mt-2 rounded-lg border bg-muted/20" data-tour="slide-nav">
       <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5">
         <button
           type="button"
@@ -1765,6 +1759,7 @@ export default function CollaborateChat({
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [previewWidth, setPreviewWidth] = useState(35);
+  const [tourForceOpen, setTourForceOpen] = useState(false);
 
   const endRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
@@ -2307,6 +2302,7 @@ export default function CollaborateChat({
   }
 
   return (
+    <>
     <div className="flex h-[calc(100vh-5rem)] gap-3">
       <aside
         className={`hidden min-w-0 flex-col rounded-lg border bg-background/95 p-2 transition-[width] lg:flex ${
@@ -2422,6 +2418,13 @@ export default function CollaborateChat({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setTourForceOpen(true)}
+                className="inline-flex items-center whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                {s.editor.replayTour}
+              </button>
               <Link
                 href={`/qbr/${qbrId}`}
                 className="inline-flex items-center whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -2627,7 +2630,7 @@ export default function CollaborateChat({
                 </ul>
               </div>
             )}
-            <div className="flex min-h-[200px] flex-1 flex-col bg-muted/10">
+            <div className="flex min-h-[200px] flex-1 flex-col bg-muted/10" data-tour="chat">
               <div className="flex items-center justify-between border-b px-3 py-2">
                 <h3 className="text-xs font-medium text-foreground">{s.editor.askAssistant}</h3>
                 <div className="flex gap-1 text-[10px]">
@@ -2777,5 +2780,11 @@ export default function CollaborateChat({
         </div>
       </div>
     </div>
+    <EditorTour
+      locale={uiLocale}
+      forceOpen={tourForceOpen}
+      onClose={() => setTourForceOpen(false)}
+    />
+    </>
   );
 }

@@ -2,9 +2,20 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { audit } from "@/lib/audit";
+import {
+  accountScopeFilter,
+  isAuthUser,
+  requireAdminApi,
+  requireUserApi,
+} from "@/lib/auth";
 
-export async function GET() {
+/** Authenticated users get a scoped account list; admins see everything. */
+export async function GET(req: Request) {
+  const user = await requireUserApi(req);
+  if (!isAuthUser(user)) return user;
+
   const accounts = await prisma.account.findMany({
+    where: accountScopeFilter(user),
     include: { vpOwner: true, director: true, accountManager: true },
     orderBy: { clientName: "asc" },
   });
@@ -20,6 +31,9 @@ const Schema = z.object({
 });
 
 export async function POST(req: Request) {
+  const actor = await requireAdminApi(req);
+  if (!isAuthUser(actor)) return actor;
+
   try {
     const body = Schema.parse(await req.json());
     const account = await prisma.account.create({ data: body });
@@ -44,6 +58,9 @@ const UpdateSchema = z.object({
 });
 
 export async function PATCH(req: Request) {
+  const actor = await requireAdminApi(req);
+  if (!isAuthUser(actor)) return actor;
+
   try {
     const { id, ...data } = UpdateSchema.parse(await req.json());
     const account = await prisma.account.update({ where: { id }, data });
@@ -65,6 +82,9 @@ const DeleteSchema = z.object({
 
 /** Delete a client account only after the caller re-enters the exact client name. */
 export async function DELETE(req: Request) {
+  const actor = await requireAdminApi(req);
+  if (!isAuthUser(actor)) return actor;
+
   try {
     const { id, confirmationName } = DeleteSchema.parse(await req.json());
     const account = await prisma.account.findUnique({ where: { id } });
@@ -82,7 +102,7 @@ export async function DELETE(req: Request) {
       entityType: "Account",
       entityId: id,
       action: "account.deleted",
-      metadata: { clientName: account.clientName },
+      metadata: { clientName: account.clientName, actorEmail: actor.email },
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

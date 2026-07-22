@@ -3,11 +3,15 @@ import { z } from "zod";
 import { setUiLocale } from "@/lib/qbr/createWorkflow";
 import { getQbrFull, readDeckOptions } from "@/lib/qbr/service";
 import { LOCALES } from "@/lib/constants";
+import { isQbrAccess, requireQbrAccessApi } from "@/lib/auth";
 
 const Schema = z.object({ uiLocale: z.enum(LOCALES) });
 
 /** Switch editor/site UI language (workflow, chat, prompts). */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const access = await requireQbrAccessApi(req, params.id, "canEditDeck");
+  if (!isQbrAccess(access)) return access;
+
   try {
     const { uiLocale } = Schema.parse(await req.json());
     const saved = await setUiLocale(params.id, uiLocale);

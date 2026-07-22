@@ -14,6 +14,9 @@ function run(cmd, label) {
   execSync(cmd, { stdio: "inherit", env: process.env });
 }
 
+// Applies pending Prisma migrations to Lakebase/Postgres on every app boot
+// (including the User.regions RBAC column). Migration SQL lives in the git repo;
+// deploy the app — do not push SQL to Databricks separately.
 try {
   run("npx prisma migrate deploy", "Applying database migrations");
 } catch (err) {

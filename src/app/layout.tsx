@@ -4,6 +4,8 @@ import Image from "next/image";
 import { Lato } from "next/font/google";
 import { getServerUiLocale } from "@/lib/i18n/serverLocale";
 import { getStrings } from "@/lib/i18n";
+import { getCurrentUser, hasCapability } from "@/lib/auth";
+import UserBadge from "@/components/UserBadge";
 import GlobalLanguageToggle from "./GlobalLanguageToggle";
 import "./globals.css";
 
@@ -19,18 +21,23 @@ export const metadata: Metadata = {
   description: "Système de revue d’affaires — GDI BR Creation Agent",
 };
 
-export default function RootLayout({
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const locale = getServerUiLocale();
   const nav = getStrings(locale).nav;
+  const user = await getCurrentUser();
+  const showDashboard = user ? hasCapability(user.role, "canViewDashboard") : false;
+  const showSettings = user ? hasCapability(user.role, "canManageSettings") : false;
 
   const links = [
-    { href: "/dashboard", label: nav.dashboard },
+    ...(showDashboard ? [{ href: "/dashboard", label: nav.dashboard }] : []),
     { href: "/collaborate", label: nav.editor },
-    { href: "/admin/settings", label: nav.settings },
+    ...(showSettings ? [{ href: "/admin/settings", label: nav.settings }] : []),
   ];
 
   return (
@@ -43,7 +50,7 @@ export default function RootLayout({
           <header className="border-b border-gdi-blue/15 bg-white">
             <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2">
               <Link
-                href="/dashboard"
+                href={showDashboard ? "/dashboard" : "/collaborate"}
                 className="flex shrink-0 items-center gap-3"
               >
                 <Image
@@ -69,7 +76,8 @@ export default function RootLayout({
                   </Link>
                 ))}
               </nav>
-              <div className="shrink-0">
+              <div className="flex shrink-0 items-center gap-3">
+                <UserBadge user={user} />
                 <GlobalLanguageToggle locale={locale} />
               </div>
             </div>

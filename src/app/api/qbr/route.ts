@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { isAuthUser, qbrScopeFilter, requireUserApi } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-/** List QBRs with summary info for the dashboard. */
-export async function GET() {
+/** List QBRs with summary info — scoped to the caller's role/region/ownership. */
+export async function GET(req: Request) {
+  const user = await requireUserApi(req);
+  if (!isAuthUser(user)) return user;
+
   const cycles = await prisma.qbrCycle.findMany({
+    where: qbrScopeFilter(user),
     orderBy: { updatedAt: "desc" },
     include: {
       account: true,

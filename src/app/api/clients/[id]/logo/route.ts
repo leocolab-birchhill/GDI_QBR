@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { saveFile } from "@/lib/storage";
 import { audit } from "@/lib/audit";
+import { requireAccountAccessApi } from "@/lib/auth";
 
 const ALLOWED = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"]);
 const EXT_BY_MIME: Record<string, string> = {
@@ -19,6 +20,9 @@ const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
  * account profile (Account.logoUrl) so every deck for this client picks it up.
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const access = await requireAccountAccessApi(req, params.id, "canEditDeck");
+  if (access instanceof NextResponse) return access;
+
   try {
     const account = await prisma.account.findUnique({ where: { id: params.id } });
     if (!account) return NextResponse.json({ error: "Account not found" }, { status: 404 });
@@ -45,6 +49,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       entityType: "Account",
       entityId: account.id,
       action: "account.logo_uploaded",
+      actorEmail: access.user.email,
       metadata: { fileUrl, mimeType: file.type, size: file.size },
     });
 

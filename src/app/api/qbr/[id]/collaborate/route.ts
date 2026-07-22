@@ -37,6 +37,7 @@ import {
   type GuidedSection,
 } from "@/lib/i18n";
 import { getServerUiLocale } from "@/lib/i18n/serverLocale";
+import { isQbrAccess, requireQbrAccessApi } from "@/lib/auth";
 
 const GuidedTaskSchema = z.object({
   id: z.string(),
@@ -60,7 +61,9 @@ const Schema = z.object({
   patches: z.array(DeckPatchSchema).optional(),
   action: z.enum(["propose", "accept", "reject", "undo", "direct"]).optional(),
   changeSetId: z.string().optional(),
+  /** @deprecated Ignored — actor comes from SSO session. */
   actorEmail: z.string().optional(),
+  /** @deprecated Ignored — actor comes from SSO session. */
   actorName: z.string().optional(),
   confirmSection: z.string().optional(),
   activeSection: z.string().optional(),
@@ -99,7 +102,10 @@ function latestDeckSnapshot(full: Awaited<ReturnType<typeof getQbrFull>>) {
   };
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
+  const access = await requireQbrAccessApi(req, params.id);
+  if (!isQbrAccess(access)) return access;
+
   const full = await getQbrFull(params.id);
   if (!full) return NextResponse.json({ error: "QBR not found" }, { status: 404 });
   return NextResponse.json({ ok: true, ...latestDeckSnapshot(full) });
@@ -135,9 +141,14 @@ function clientFacingText(operations: SlideEditOp[]): string {
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const access = await requireQbrAccessApi(req, params.id, "canEditDeck");
+  if (!isQbrAccess(access)) return access;
+
   try {
     const body = Schema.parse(await req.json());
-    const { operations, patches, actorEmail, actorName, confirmSection, activeSection, action, changeSetId, inputSource, guidedTask } = body;
+    const { operations, patches, confirmSection, activeSection, action, changeSetId, inputSource, guidedTask } = body;
+    const actorEmail = access.user.email;
+    const actorName = access.user.name;
     const message = body.message?.trim() ?? "";
 
     const full = await getQbrFull(params.id);

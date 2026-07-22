@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { generateDraft } from "@/lib/qbr/service";
+import { isQbrAccess, requireQbrAccessApi } from "@/lib/auth";
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const access = await requireQbrAccessApi(req, params.id, "canEditDeck");
+  if (!isQbrAccess(access)) return access;
+
   try {
     let body: { skipAi?: boolean } = {};
     try {
-      body = await _req.json();
+      body = await req.json();
     } catch {
       body = {};
     }

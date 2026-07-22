@@ -1,13 +1,20 @@
 import { NextResponse } from "next/server";
 import { getSettings, updateSettings } from "@/lib/qbr/settings";
 import { audit } from "@/lib/audit";
+import { isAuthUser, requireAdminApi } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const actor = await requireAdminApi(req);
+  if (!isAuthUser(actor)) return actor;
+
   const settings = await getSettings();
   return NextResponse.json(settings);
 }
 
 export async function POST(req: Request) {
+  const actor = await requireAdminApi(req);
+  if (!isAuthUser(actor)) return actor;
+
   try {
     const body = await req.json();
     // Only allow known fields through.

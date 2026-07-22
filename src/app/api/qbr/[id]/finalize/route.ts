@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { finalize, FinalizationBlockedError } from "@/lib/qbr/service";
 import { getSettings } from "@/lib/qbr/settings";
+import { isQbrAccess, requireQbrAccessApi } from "@/lib/auth";
 
 const Schema = z.object({ allowOverride: z.boolean().optional() }).optional();
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const access = await requireQbrAccessApi(req, params.id, "canFinalize");
+  if (!isQbrAccess(access)) return access;
+
   try {
     const body = (await req.json().catch(() => ({}))) ?? {};
     const parsed = Schema.parse(body) ?? {};

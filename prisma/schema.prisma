@@ -18,6 +18,8 @@ model User {
   name      String
   email     String   @unique
   role      String   @default("Viewer") // Admin | VP | Director | AccountManager | Viewer
+  // Regions this user may access (e.g. ["Quebec"]). Combined with ownership links for scope.
+  regions   String[] @default([])
   createdAt DateTime @default(now())
 
   accountsAsVp       Account[] @relation("VpOwner")

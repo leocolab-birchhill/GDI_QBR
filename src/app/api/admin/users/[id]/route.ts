@@ -1,8 +1,39 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { audit } from "@/lib/audit";
+import { USER_ROLES } from "@/lib/constants";
+import { isAuthUser, requireAdminApi } from "@/lib/auth";
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+const PatchSchema = z.object({
+  name: z.string().min(1).optional(),
+  role: z.enum(USER_ROLES).optional(),
+  regions: z.array(z.string().min(1)).optional(),
+});
+
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const actor = await requireAdminApi(req);
+  if (!isAuthUser(actor)) return actor;
+
+  try {
+    const body = PatchSchema.parse(await req.json());
+    const user = await prisma.user.update({
+      where: { id: params.id },
+      data: body,
+    });
+    return NextResponse.json(user);
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: err.flatten() }, { status: 400 });
+    }
+    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  const actor = await requireAdminApi(req);
+  if (!isAuthUser(actor)) return actor;
+
   try {
     const user = await prisma.user.findUnique({ where: { id: params.id } });
     if (!user) {
@@ -21,7 +52,7 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
       entityType: "User",
       entityId: params.id,
       action: "user.deleted",
-      metadata: { email: user.email, name: user.name },
+      metadata: { email: user.email, name: user.name, actorEmail: actor.email },
     });
 
     return NextResponse.json({ ok: true });
